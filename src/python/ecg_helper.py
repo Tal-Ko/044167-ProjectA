@@ -50,7 +50,7 @@ def calc_avg_bpm_from_hist(hist):
          s = s + i * hist[i]
          if hist[i] != 0:
              c = c + hist[i]
-     return s/c
+     return round(s/c, 3)
 
 def main():
     global data_from_arduino, parsed_data
