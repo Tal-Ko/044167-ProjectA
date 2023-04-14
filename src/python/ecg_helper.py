@@ -43,15 +43,6 @@ def get_bpm_histogram(ser):
 
     return convert_to_plot_hist(bpm_hist)
 
-def calc_avg_bpm_from_hist(hist):
-     s = 0
-     c = 0
-     for i in range(1, len(hist)):
-         s = s + i * hist[i]
-         if hist[i] != 0:
-             c = c + hist[i]
-     return round(s/c, 3)
-
 def main():
     global data_from_arduino, parsed_data
 
@@ -179,7 +170,7 @@ def main():
         ax2.set_title('BPM Distribution')
 
         # Calc Avg BPM
-        avg_bpm = calc_avg_bpm_from_hist(bpm_hist)
+        avg_bpm = round(sum(bpm_hist) / len(bpm_hist), 3)
         text2 = "The Avarge Bpm is: " + str(avg_bpm)
         ax2.text(0.5, -0.1, text2, transform=ax2.transAxes, ha='center')
 
