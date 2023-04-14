@@ -157,6 +157,7 @@ def main():
             RR_sd = round(statistics.stdev(rr_hist), 3)
             text = "Your RR intervals are distributed with mean " + str(RR_mean) + " and variance " + str(RR_sd)
             ax1.text(0.5, -0.1, text, transform=ax1.transAxes, ha='center')
+            ax1.axvline(RR_mean, color='k', linestyle='dashed', linewidth=1)
         except:
             pass
 
@@ -173,6 +174,12 @@ def main():
         avg_bpm = round(sum(bpm_hist) / len(bpm_hist), 3)
         text2 = "The Avarge Bpm is: " + str(avg_bpm)
         ax2.text(0.5, -0.1, text2, transform=ax2.transAxes, ha='center')
+
+        try:
+            BPM_mean = round(statistics.mean(bpm_hist), 3)
+            ax2.axvline(BPM_mean, color='k', linestyle='dashed', linewidth=1)
+        except:
+            pass
 
     def exit_program():
         exit()
