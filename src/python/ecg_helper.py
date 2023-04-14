@@ -1,15 +1,56 @@
 # Based on http://www.mikeburdis.com/wp/notes/plotting-serial-port-data-using-python-and-matplotlib/
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import argparse
-import functools
-import matplotlib.animation as animation
+import enum
 import matplotlib.pyplot as plt
+import pandas as pd
 import serial
-import threading
+import statistics
 import time
+import tkinter as tk
 
-data_from_arduino = b''
-parsed_data = []
-histogram_data = []
+class Actions(enum.IntEnum):
+    RR_INTERVALS_HISTOGRAM = 1
+    BPM_HISTOGRAM = 2
+
+def convert_to_plot_hist(raw_hist_data):
+    hist_data = []
+    for i in range(1, len(raw_hist_data)):
+        hist_data.extend([i] * raw_hist_data[i])
+
+    return hist_data
+
+def get_rr_intervals_histogram(ser):
+    ser.write("s{}".format(Actions.RR_INTERVALS_HISTOGRAM.value).encode())
+
+    # Give time for data to be dumped
+    time.sleep(2)
+    rr_intervals_hist_raw = ser.read_all().strip().split(b'\r\n')
+    rr_intervals_hist_raw = rr_intervals_hist_raw[:-1]
+    rr_intervals_hist = [int(val) for val in rr_intervals_hist_raw]
+
+    return convert_to_plot_hist(rr_intervals_hist)
+
+def get_bpm_histogram(ser):
+    # Get BPM Histogram
+    ser.write("s{}".format(Actions.BPM_HISTOGRAM.value).encode())
+
+    # Give time for data to be dumped
+    time.sleep(2)
+    bpm_hist_raw = ser.read_all().strip().split(b'\r\n')
+    bpm_hist_raw = bpm_hist_raw[:-1]
+    bpm_hist = [int(val) for val in bpm_hist_raw]
+
+    return convert_to_plot_hist(bpm_hist)
+
+def calc_avg_bpm_from_hist(hist):
+     s = 0
+     c = 0
+     for i in range(1, len(hist)):
+         s = s + i * hist[i]
+         if hist[i] != 0:
+             c = c + hist[i]
+     return s/c
 
 def main():
     global data_from_arduino, parsed_data
@@ -39,13 +80,8 @@ def main():
         print("\nAll right, serial port now open. Configuration:\n")
         print(ser, "\n")
 
-    # Create figure for plotting
-    fig = plt.figure(1)
-    ax = fig.add_subplot(2, 1, 1)
-    bpm_ax = fig.add_subplot(2, 1, 2)
-    xs = []
-    bpm = []
-    ecg = []
+    print("[*] Writing samples data to CSV...")
+    print("[*] Please press the (matrix) button to start")
 
     # https://stackoverflow.com/questions/71659042/sending-int-from-python-to-arduino-but-there-is-an-upper-limit-how-do-i-solve
     # Convert from mV to V
@@ -54,93 +90,110 @@ def main():
     for ecg_sample_serial in ecg_data_for_serial:
         ser.write(ecg_sample_serial)
 
-    def read_from_serial():
-        global data_from_arduino, parsed_data, histogram_data
-        while True:
-            new_data = ser.read_all()
-            data_from_arduino += new_data
-            if data_from_arduino == b'':
-                continue
+    print("[*] Waiting for simulation to complete...")
 
-            last_data_index = data_from_arduino.rfind(b'\r\n')
-            parsed_data.extend(data_from_arduino[:last_data_index].strip().split(b'\r\n'))
-            data_from_arduino = data_from_arduino[last_data_index:]
+    # Simulation length is ~10seconds
+    time_buffer = 1
+    simulation_time = 10
+    time.sleep(simulation_time + time_buffer)
 
-            if parsed_data[-1] == b'Done data':
+    # Wait for simulation to complete
+    while True:
+        res = ser.readline()
+        if res.strip() == b'Simulation done!':
+            break
+
+    print("[*] Simulation done!")
+    print("[*] Please press the (matrix) button to stop monitoring")
+
+    # Wait for user input to press the button
+    while True:
+        try:
+            res = ser.readline()
+            if res.strip() == b'Monitoring done!':
                 break
+        except:
+            continue
 
-        parsed_data = list(filter(lambda val: val != b'', parsed_data))
+    print("[*] Monitoring done!")
 
-        data_from_arduino = data_from_arduino[data_from_arduino.rfind(b'Done data'):]
+    rr_hist = get_rr_intervals_histogram(ser)
+    bpm_hist = get_bpm_histogram(ser)
 
-        # Parse histrogram data
-        while True:
-            new_data = ser.read_all()
-            data_from_arduino += new_data
-            if data_from_arduino == b'':
-                continue
+    # Start Button BG
+    root = tk.Tk()
+    root.title("HRV Project")
 
-            last_data_index = data_from_arduino.rfind(b'\r\n')
-            histogram_data.extend(data_from_arduino[:last_data_index].strip().split(b'\r\n'))
-            data_from_arduino = data_from_arduino[last_data_index:]
+    # Define Data for GUI
+    df1 = pd.DataFrame(rr_hist)
+    df2 = pd.DataFrame(bpm_hist)
 
-            if histogram_data[-1] == b'Done hist':
-                break
+    def start_function():
+        # print("The start button has been clicked!")
 
-        histogram_data = list(filter(lambda val: val != b'', histogram_data))[:-1]
-        histogram_data = [int(x) for x in histogram_data]
-        print(histogram_data)
+        # Plot BG defintion
+        root_plot = tk.Tk()
+        root_plot.title("HRV Project")
 
-    data_thread = threading.Thread(target=read_from_serial)
+        # Set the window size to be 400x300 pixels
+        window_width = 1200
+        window_height = 600
 
-    # Give some startup time
-    time.sleep(1)
-    data_thread.start()
+        # Get the screen width and height
+        screen_width = root.winfo_screenwidth()
+        screen_height = root.winfo_screenheight()
 
-    print("Waiting for data from Arduino...")
-    data_thread.join()
+        # Calculate the x and y coordinates to center the window
+        x = (screen_width / 2) - (window_width / 2)
+        y = (screen_height / 2) - (window_height / 2)
 
-    print("Displaying results:")
-    hist_fig = plt.figure(2)
-    hist_ax = hist_fig.add_subplot(1, 1, 1)
-    hist_values = []
-    for i in range(1, len(histogram_data)):
-        hist_values.extend([i] * histogram_data[i])
+        # Set the window size and position
+        root_plot.geometry('%dx%d+%d+%d' % (window_width, window_height, x, y))
 
-    hist_ax.hist(hist_values)
+        # HRV Histogram Plot
+        figure1 = plt.Figure(figsize=(6, 5), dpi=100)
+        ax1 = figure1.add_subplot(111)
+        bar1 = FigureCanvasTkAgg(figure1, root_plot)
+        bar1.get_tk_widget().pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        ax1.hist(df1, bins=50)
+        ax1.grid(axis='y')
+        ax1.set_title('HRV Histogram Distribution')
 
-    # This function is called periodically from FuncAnimation
-    def animate(frame, xs, bpm, ecg):
-        frame_idx = len(xs)
+        # Calc HVR
+        # TODO: Move to Arduino code
+        try:
+            RR_mean = round(statistics.mean(rr_hist), 3)
+            RR_sd = round(statistics.stdev(rr_hist), 3)
+            text = "Your RR intervals are distributed with mean " + str(RR_mean) + " and variance " + str(RR_sd)
+            ax1.text(0.5, -0.1, text, transform=ax1.transAxes, ha='center')
+        except:
+            pass
 
-        # Aquire and parse data from serial port
-        line = parsed_data[frame_idx]
-        if line == b'Done data':
-            return
+        # BPM Plot
+        figure2 = plt.Figure(figsize=(5, 4), dpi=100)
+        ax2 = figure2.add_subplot(111)
+        line2 = FigureCanvasTkAgg(figure2, root_plot)
+        line2.get_tk_widget().pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        ax2.hist(df2, color='green', bins=50)
+        ax2.grid(axis='y')
+        ax2.set_title('BPM Distribution')
 
-        ecgReading, beatsPerMinute = line.strip().split(b',')
-        ecgReading = float(ecgReading)
-        beatsPerMinute = float(beatsPerMinute)
+        # Calc Avg BPM
+        avg_bpm = calc_avg_bpm_from_hist(bpm_hist)
+        text2 = "The Avarge Bpm is: " + str(avg_bpm)
+        ax2.text(0.5, -0.1, text2, transform=ax2.transAxes, ha='center')
 
-        xs.append(frame_idx)
-        bpm.append(beatsPerMinute)
-        ecg.append(ecgReading)
+    def exit_program():
+        exit()
 
-        ax.clear()
-        ax.plot(xs, ecg, label="Raw ECG Signal")
-        ax.legend()
+    # Open Window buttons
+    start_button = tk.Button(root, text="Start", width=15, height=5, bg="purple", fg="yellow", command=start_function)
+    start_button.pack(pady=10)
 
-        bpm_ax.clear()
-        bpm_ax.plot(xs, bpm, label="BPM")
-        bpm_ax.legend()
+    exit_button = tk.Button(root, text="Exit", command=exit_program)
+    exit_button.pack()
 
-    # Set up plot to call animate() function periodically
-    ani = animation.FuncAnimation(fig, functools.partial(animate, xs=xs, bpm=bpm, ecg=ecg), interval=1)
-
-    try:
-        plt.show()
-    except KeyboardInterrupt:
-        ser.close()
+    root.mainloop()
 
 if __name__ == "__main__":
     main()

@@ -1,28 +1,73 @@
-const int ecgPin = A0;
-int upperThreshold = 400;
-int lowerThreshold = -400;
-int ecgOffset = 0;
-float beatsPerMinute = 0.0;
-bool alreadyPeaked = false;
-unsigned long firstPeakTime = 0;
-unsigned long secondPeakTime = 0;
-unsigned long rrInterval = 0;
+// Comment this line if you want to run with real ECG signal
+#define SIMULATION
 
-// Array for the Histogram
-// TODO: Change to a more fitting size
-#define HIST_NUM_BINS (1000)
+#define BPM_HIST_NUM_BINS (220)
 
-unsigned int intervalsHisotgram[HIST_NUM_BINS] = {};
-
-// Variables for ECG data simulation
+#ifdef SIMULATION
+#define RR_HIST_NUM_BINS (1000)
 int parsedSimulatedECGDataIndex = 0;
 int ecgDataIndex = 0;
 int ecgData[10000];
+bool simulationDone = false;
+#else   // !SIMULATION
+#define RR_HIST_NUM_BINS (100)
+const int ecgPin = A0;
+#endif  // SIMULATION
+
+const int buttonPin = 2;
+int buttonState = 0;
+
+bool monitoringDone = false;
+
+bool alreadyPeaked = false;
+float beatsPerMinute = 0.0;
+
+// TODO: Figure out these values for real ECG Signal
+int ecgOffset = 0;
+int lowerThreshold = -400;
+int upperThreshold = 400;
+
+unsigned int rrIntervalsHistogram[RR_HIST_NUM_BINS] = {};
+unsigned int bpmHistogram[BPM_HIST_NUM_BINS + 1] = {};
+
+unsigned long firstPeakTime = 0;
+unsigned long rrInterval = 0;
+unsigned long secondPeakTime = 0;
+
+void dumpRRIntervalHistogram() {
+    // Dump RR histogram
+    for (int i = 0; i < RR_HIST_NUM_BINS; ++i) {
+        SerialUSB.println(rrIntervalsHistogram[i]);
+    }
+
+    SerialUSB.println("Done");
+}
+
+void dumpBPMHistogram() {
+    // Dump BPM histogram
+    for (int i = 0; i < BPM_HIST_NUM_BINS; ++i) {
+        SerialUSB.println(bpmHistogram[i]);
+    }
+
+    SerialUSB.println("Done");
+}
 
 void setup() {
     SerialUSB.begin(115200);
     pinMode(LED_BUILTIN, OUTPUT);
+    pinMode(buttonPin, INPUT);
 
+    // Wait until the button is pressed before starting the program
+    do {
+         buttonState = digitalRead(buttonPin);
+         if (buttonState == HIGH) {
+            break;
+         }
+    } while (buttonState == LOW);
+
+    digitalWrite(LED_BUILTIN, HIGH);
+
+#ifdef SIMULATION
     while (SerialUSB.available() <= 0) {
         continue;
     }
@@ -32,29 +77,61 @@ void setup() {
         reading = SerialUSB.parseInt() - ecgOffset;
         ecgData[parsedSimulatedECGDataIndex++] = reading;
     } while (reading != 1000);
+#endif  // SIMULATION
+
+    digitalWrite(LED_BUILTIN, LOW);
 }
 
 void loop() {
-    // Until we work with actual analog signal
-    if (ecgDataIndex > parsedSimulatedECGDataIndex) {
-        SerialUSB.println("Done data");
-        digitalWrite(LED_BUILTIN, LOW);
+    // Detect if button was pressed.
+    // If it was, stop collecting data and dump the results so far
+    buttonState = digitalRead(buttonPin);
+    if (buttonState == HIGH && !monitoringDone) {
+        monitoringDone = true;
+        digitalWrite(LED_BUILTIN, HIGH);
+        SerialUSB.println("Monitoring done!");
+    }
 
-        for (int i = 0; i < HIST_NUM_BINS; ++i) {
-            SerialUSB.println(intervalsHisotgram[i]);
+    if (monitoringDone) {
+        if (SerialUSB.available() > 0) {
+            int action = SerialUSB.parseInt();
+            switch (action) {
+                case 1:
+                    dumpRRIntervalHistogram();
+                    break;
+                case 2:
+                    dumpBPMHistogram();
+                    break;
+                default:
+                    break;
+            }
         }
-
-        SerialUSB.println("Done hist");
+        delay(10);
         return;
     }
 
+#ifdef SIMULATION
+    // Check if the simulation is finished
+    if (ecgDataIndex > parsedSimulatedECGDataIndex || simulationDone) {
+        // Print only once
+        if (!simulationDone) {
+            SerialUSB.println("Simulation done!");
+            simulationDone = true;
+            digitalWrite(LED_BUILTIN, LOW);
+        }
+
+        delay(10);
+        return;
+    }
+
+    // Otherwise parse the next sample
     int ecgReading = ecgData[ecgDataIndex++];
-    // int ecgReading = SerialUSB.parseInt() - ecgOffset;
-    // int ecgReading = analogRead(ecgPin) - ecgOffset;
+#else   // !SIMULATION
+    int ecgReading = analogRead(ecgPin) - ecgOffset;
+#endif  // SIMULATION
 
     // Measure the ECG reading minus an offset to bring it into the same
     // range as the heart rate (i.e. around 60 to 100 bpm)
-
     if (ecgReading > upperThreshold && alreadyPeaked == false) {
         // Check if the ECG reading is above the upper threshold and that
         // we aren't already in an existing peak
@@ -70,7 +147,13 @@ void loop() {
             // again
             secondPeakTime = millis();
             rrInterval = secondPeakTime - firstPeakTime;
-            intervalsHisotgram[rrInterval]++;
+            rrIntervalsHistogram[rrInterval]++;
+
+            // Calculate the beats per minute, rrInterval is measured in
+            // milliseconds so we must multiply by 1000
+            beatsPerMinute = (1.0/rrInterval) * 60.0 * 1000;
+            bpmHistogram[min((int)(floor(beatsPerMinute)), BPM_HIST_NUM_BINS)]++;
+
             firstPeakTime = secondPeakTime;
             digitalWrite(LED_BUILTIN, HIGH);
         }
@@ -84,16 +167,5 @@ void loop() {
         digitalWrite(LED_BUILTIN, LOW);
     }
 
-    // Calculate the beats per minute, rrInterval is measured in
-    // milliseconds so we must multiply by 1000
-    if (rrInterval != 0) {
-        beatsPerMinute = (1.0/rrInterval) * 60.0 * 1000;
-    }
-
-    // Print the final values to be read by the serial plotter
-    SerialUSB.print(ecgReading);
-    SerialUSB.print(",");
-    SerialUSB.println(beatsPerMinute);
-
-    // delay(5);
+    delay(5);
 }
