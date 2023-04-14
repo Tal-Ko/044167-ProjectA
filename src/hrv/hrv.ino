@@ -4,13 +4,13 @@
 #define BPM_HIST_NUM_BINS (220)
 
 #ifdef SIMULATION
-#define RR_HIST_NUM_BINS (1000)
+#define RR_HIST_NUM_BINS (1200)
 int parsedSimulatedECGDataIndex = 0;
 int ecgDataIndex = 0;
 int ecgData[10000];
 bool simulationDone = false;
 #else   // !SIMULATION
-#define RR_HIST_NUM_BINS (100)
+#define RR_HIST_NUM_BINS (1200)
 const int ecgPin = A0;
 #endif  // SIMULATION
 
@@ -167,5 +167,5 @@ void loop() {
         digitalWrite(LED_BUILTIN, LOW);
     }
 
-    delay(5);
+    delay(1);
 }
