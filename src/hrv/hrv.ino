@@ -1,3 +1,15 @@
+// Credit: https://github.com/DeanIsMe/SevSeg
+#include "SevSeg.h"
+
+SevSeg sevseg;
+byte numDigits = 3;
+byte digitPins[] = {22, 23, 24, 25};
+byte segmentPins[] = {32, 30, 41, 43, 44, 34, 40, 42};
+
+bool resistorsOnSegments = true;
+bool updateWithDelaysIn = true;
+byte hardwareConfig = COMMON_CATHODE;
+
 // Comment this line if you want to run with real ECG signal
 #define SIMULATION
 
@@ -21,6 +33,7 @@ bool monitoringDone = false;
 
 bool alreadyPeaked = false;
 float beatsPerMinute = 0.0;
+int bpmi = 0;
 
 // TODO: Figure out these values for real ECG Signal
 int ecgOffset = 0;
@@ -53,6 +66,9 @@ void dumpBPMHistogram() {
 }
 
 void setup() {
+    sevseg.begin(hardwareConfig, numDigits, digitPins, segmentPins, resistorsOnSegments);
+    sevseg.setBrightness(90);
+
     SerialUSB.begin(115200);
     pinMode(LED_BUILTIN, OUTPUT);
     pinMode(buttonPin, INPUT);
@@ -106,6 +122,7 @@ void loop() {
                     break;
             }
         }
+
         delay(10);
         return;
     }
@@ -152,7 +169,10 @@ void loop() {
             // Calculate the beats per minute, rrInterval is measured in
             // milliseconds so we must multiply by 1000
             beatsPerMinute = (1.0/rrInterval) * 60.0 * 1000;
-            bpmHistogram[min((int)(floor(beatsPerMinute)), BPM_HIST_NUM_BINS)]++;
+            bpmi = min((int)(floor(beatsPerMinute)), BPM_HIST_NUM_BINS);
+            bpmHistogram[bpmi]++;
+
+            sevseg.setNumber(bpmi);
 
             firstPeakTime = secondPeakTime;
             digitalWrite(LED_BUILTIN, HIGH);
@@ -167,5 +187,6 @@ void loop() {
         digitalWrite(LED_BUILTIN, LOW);
     }
 
+    sevseg.refreshDisplay();
     delay(1);
 }
