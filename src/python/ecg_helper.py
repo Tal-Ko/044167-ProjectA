@@ -12,6 +12,9 @@ import tkinter as tk
 class Actions(enum.IntEnum):
     RR_INTERVALS_HISTOGRAM = 1
     BPM_HISTOGRAM = 2
+    RMSSD = 3
+    SDANN = 4
+    HTI = 5
 
 def convert_to_plot_hist(raw_hist_data):
     hist_data = []
@@ -135,6 +138,11 @@ def main():
 
     rr_hist = get_rr_intervals_histogram(ser)
     bpm_hist = get_bpm_histogram(ser)
+    rmssd = get_rmssd(ser)
+    sdann = get_sdann(ser)
+    hti = get_hti(ser)
+
+    print(f"[*] RMSSD=[{rmssd}] SDANN=[{sdann}] HTI=[{hti}]")
 
     # Start Button BG
     root = tk.Tk()
