@@ -10,7 +10,7 @@
 
 SevSeg sevseg;
 byte numDigits = 3;
-byte digitPins[] = {22, 23, 24, 25};
+byte digitPins[] = {23, 24, 25, 26};
 byte segmentPins[] = {32, 30, 41, 43, 44, 34, 40, 42};
 
 bool resistorsOnSegments = true;
@@ -294,6 +294,7 @@ void loop() {
         monitoringDone = true;
         digitalWrite(LED_BUILTIN, HIGH);
         SerialUSB.println("Monitoring done!");
+        sevseg.blank();
     }
 
     if (monitoringDone) {
