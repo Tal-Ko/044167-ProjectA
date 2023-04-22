@@ -43,12 +43,34 @@ def get_bpm_histogram(ser):
 
     return convert_to_plot_hist(bpm_hist)
 
+def get_rmssd(ser):
+    ser.write("s{}".format(Actions.RMSSD.value).encode())
+
+    # Give time for data to be dumped
+    time.sleep(2)
+    return float(ser.read_all().strip().split(b'\r\n')[0])
+
+def get_sdann(ser):
+    ser.write("s{}".format(Actions.SDANN.value).encode())
+
+    # Give time for data to be dumped
+    time.sleep(2)
+    return float(ser.read_all().strip().split(b'\r\n')[0])
+
+def get_hti(ser):
+    ser.write("s{}".format(Actions.HTI.value).encode())
+
+    # Give time for data to be dumped
+    time.sleep(2)
+    return float(ser.read_all().strip().split(b'\r\n')[0])
+
 def main():
     global data_from_arduino, parsed_data
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-s', '--samples', type=argparse.FileType('r'), required=True)
     parser.add_argument('-c', '--com', type=int, required=True)
+    parser.add_argument('--cm', action='store_true')
     args = parser.parse_args()
 
     # Read data from ECG samples
@@ -81,20 +103,23 @@ def main():
     for ecg_sample_serial in ecg_data_for_serial:
         ser.write(ecg_sample_serial)
 
-    print("[*] Waiting for simulation to complete...")
+    # Check if we're not in continuous mode
+    if not args.cm:
+        print("[*] Waiting for simulation to complete...")
 
-    # Simulation length is ~10seconds
-    time_buffer = 1
-    simulation_time = 10
-    time.sleep(simulation_time + time_buffer)
+        # Simulation length is ~10seconds
+        time_buffer = 1
+        simulation_time = 10
+        time.sleep(simulation_time + time_buffer)
 
-    # Wait for simulation to complete
-    while True:
-        res = ser.readline()
-        if res.strip() == b'Simulation done!':
-            break
+        # Wait for simulation to complete
+        while True:
+            res = ser.readline()
+            if res.strip() == b'Simulation done!':
+                break
 
-    print("[*] Simulation done!")
+        print("[*] Simulation done!")
+
     print("[*] Please press the (matrix) button to stop monitoring")
 
     # Wait for user input to press the button

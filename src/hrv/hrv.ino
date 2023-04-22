@@ -1,5 +1,6 @@
 // Comment the following line if you want to run with real ECG signal
 #define SIMULATION
+#define CONTINUOUS_MODE
 
 ///////////////////////////////////////////////////////////////////////////////
 ////////////////////////////// 7 SEGMENT DISPLAY //////////////////////////////
@@ -39,9 +40,10 @@ int lowerThreshold = -400;
 int upperThreshold = 400;
 
 #ifdef SIMULATION
+#define ECG_DATA_SIZE (10000)
 int parsedSimulatedECGDataIndex = 0;
 int ecgDataIndex = 0;
-int ecgData[10000];
+int ecgData[ECG_DATA_SIZE];
 #else   // !SIMULATION
 const int ecgPin = A0;
 #endif  // SIMULATION
@@ -239,6 +241,14 @@ void loop() {
     }
 
 #ifdef SIMULATION
+#ifdef CONTINUOUS_MODE
+    // Keep reading the same data over and over again
+    if (ecgDataIndex >= ECG_DATA_SIZE) {
+        ecgDataIndex = 0;
+    }
+
+    int ecgReading = ecgData[ecgDataIndex++];
+#else   // !CONTINUOUS_MODE
     // Check if the simulation is finished
     if (ecgDataIndex > parsedSimulatedECGDataIndex || simulationDone) {
         // Print only once
@@ -254,6 +264,7 @@ void loop() {
 
     // Otherwise parse the next sample
     int ecgReading = ecgData[ecgDataIndex++];
+#endif  // CONTINUOUS_MODE
 #else   // !SIMULATION
     int ecgReading = analogRead(ecgPin) - ecgOffset;
 #endif  // SIMULATION
