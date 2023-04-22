@@ -53,6 +53,7 @@ const int ecgPin = A0;
 ///////////////////////////////////////////////////////////////////////////////
 #define BPM_HIST_NUM_BINS (220)
 #define RR_HIST_NUM_BINS (1200)
+#define MIN_RR_INTERVAL (250)
 
 unsigned int rrIntervalsHistogram[RR_HIST_NUM_BINS] = {};
 unsigned int bpmHistogram[BPM_HIST_NUM_BINS + 1] = {};
@@ -62,8 +63,6 @@ unsigned long prevrrInterval = 0;
 unsigned long rrInterval = 0;
 unsigned long secondPeakTime = 0;
 
-float beatsPerMinute = 0.0;
-int bpmi = 0;
 ///////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////// RMSSD ////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -72,7 +71,10 @@ unsigned long rmssdSum = 0;
 ///////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////// SDANN ////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
+// A-NN == Average NN (RR)
 #define SDANN_INTERVAL (5 * 60 * 1000)  // 5min = 5 * 60[s] * 1000[ms]
+
+// Number of samples in a 24hour period
 #define ANN_ARRAY_SIZE ((24 * 60 * 60 * 1000) / SDANN_INTERVAL)
 double ann[ANN_ARRAY_SIZE];
 unsigned int annIndex = 0;
@@ -83,9 +85,32 @@ unsigned long annTime = 0;
 ///////////////////////////////////////////////////////////////////////////////
 //////////////////////////////// MEASUREMENTS /////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
+// Source: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5624990/
+/**
+ * @brief The root mean square of successive differences between normal
+ * heartbeats (RMSSD) is obtained by first calculating each successive time
+ * difference between heartbeats in ms. Then, each of the values is squared and
+ * the result is averaged before the square root of the total is obtained.
+ */
 double rmssd = 0.0;
+
+/**
+ * @brief The standard deviation of the average normal-to-normal (NN) intervals
+ * for each of the 5 min segments during a 24 h recording (SDANN) is measured
+ * and reported in ms.
+ */
 double sdann = 0.0;
-double HRVI = 0.0;
+
+/**
+ * @brief The HTI is a geometric measure based on 24 h recordings which
+ * calculates the integral of the density of the RR interval histogram divided
+ * by its height.
+ */
+double hti = 0.0;
+
+///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////// ANALYSIS ///////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 void dumpRRIntervalHistogram() {
     // Dump RR histogram
@@ -164,6 +189,69 @@ void dumpHTI() {
     SerialUSB.println("Done");
 }
 
+void updateRRHistogram(unsigned long rrInterval) {
+    rrIntervalsHistogram[rrInterval]++;
+}
+
+void updateBPMHistogram(unsigned long rrInterval) {
+    // Calculate the beats per minute, rrInterval is measured in
+    // milliseconds so we must multiply by 1000
+    float beatsPerMinute = (1.0/rrInterval) * 60.0 * 1000;
+    int bpmi = min((int)(floor(beatsPerMinute)), BPM_HIST_NUM_BINS);
+    bpmHistogram[bpmi]++;
+    sevseg.setNumber(bpmi);
+}
+
+void updateRMSSDSum(unsigned long rrInterval) {
+    // Add the current RR interval difference square to the RMSSD sum
+    if (prevrrInterval == 0) {
+        prevrrInterval = rrInterval;
+    } else {
+        unsigned long rrIntervalDifference = rrInterval - prevrrInterval;
+        prevrrInterval = rrInterval;
+        rmssdSum += (rrIntervalDifference * rrIntervalDifference);
+    }
+}
+
+void updateSDANNSum(unsigned long rrInterval) {
+    // If at least SDANN_INTERVAL milliseconds passed since annTime
+    if (secondPeakTime - annTime >= SDANN_INTERVAL) {
+        // Save the average NN over the current time period
+        ann[(annIndex++) % ANN_ARRAY_SIZE] = annSum / annCount;
+
+        // Reset parameters
+        annTime = millis();
+        annSum = 0;
+        annCount = 0;
+    }
+
+    annSum += rrInterval;
+    annCount++;
+}
+
+void dispatchCommand() {
+    int action = SerialUSB.parseInt();
+    switch (action) {
+        case 1:
+            dumpRRIntervalHistogram();
+            break;
+        case 2:
+            dumpBPMHistogram();
+            break;
+        case 3:
+            dumpRMSSD();
+            break;
+        case 4:
+            dumpSDANN();
+            break;
+        case 5:
+            dumpHTI();
+            break;
+        default:
+            break;
+    }
+}
+
 void setup() {
     sevseg.begin(hardwareConfig, numDigits, digitPins, segmentPins, resistorsOnSegments);
     sevseg.setBrightness(90);
@@ -196,29 +284,6 @@ void setup() {
 
     digitalWrite(LED_BUILTIN, LOW);
     annTime = millis();
-}
-
-void dispatchCommand() {
-    int action = SerialUSB.parseInt();
-    switch (action) {
-        case 1:
-            dumpRRIntervalHistogram();
-            break;
-        case 2:
-            dumpBPMHistogram();
-            break;
-        case 3:
-            dumpRMSSD();
-            break;
-        case 4:
-            dumpSDANN();
-            break;
-        case 5:
-            dumpHRVI();
-            break;
-        default:
-            break;
-    }
 }
 
 void loop() {
@@ -286,33 +351,21 @@ void loop() {
             // again
             secondPeakTime = millis();
             rrInterval = secondPeakTime - firstPeakTime;
-            rrIntervalsHistogram[rrInterval]++;
 
-            // If at least SDANN_INTERVAL milliseconds passed since annTime
-            if (secondPeakTime - annTime >= SDANN_INTERVAL) {
-                // Save the average NN over the current time period
-                ann[annIndex++] = annSum / annCount;
-
-                // Reset parameters
-                annTime = millis();
-                annSum = 0;
-                annCount = 0;
+            // Probably noise
+            if (rrInterval < MIN_RR_INTERVAL) {
+                goto refresh;
             }
 
-            annSum += rrInterval;
-            annCount++;
-
-            // Calculate the beats per minute, rrInterval is measured in
-            // milliseconds so we must multiply by 1000
-            beatsPerMinute = (1.0/rrInterval) * 60.0 * 1000;
-            bpmi = min((int)(floor(beatsPerMinute)), BPM_HIST_NUM_BINS);
-            bpmHistogram[bpmi]++;
-
-            sevseg.setNumber(bpmi);
+            updateRRHistogram(rrInterval);
+            updateBPMHistogram(rrInterval);
+            updateRMSSDSum(rrInterval);
+            updateSDANNSum(rrInterval);
 
             firstPeakTime = secondPeakTime;
             digitalWrite(LED_BUILTIN, HIGH);
         }
+
         alreadyPeaked = true;
     }
 
@@ -323,6 +376,7 @@ void loop() {
         digitalWrite(LED_BUILTIN, LOW);
     }
 
+refresh:
     sevseg.refreshDisplay();
     delay(1);
 }
