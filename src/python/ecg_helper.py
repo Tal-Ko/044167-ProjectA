@@ -1,8 +1,8 @@
 # Based on http://www.mikeburdis.com/wp/notes/plotting-serial-port-data-using-python-and-matplotlib/
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
 import argparse
 import enum
-import matplotlib.pyplot as plt
 import pandas as pd
 import serial
 import statistics
@@ -67,9 +67,10 @@ def get_hti(ser):
     time.sleep(2)
     return float(ser.read_all().strip().split(b'\r\n')[0])
 
-def main():
-    global data_from_arduino, parsed_data
+def exit_program():
+        exit()
 
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-s', '--samples', type=argparse.FileType('r'), required=True)
     parser.add_argument('-c', '--com', type=int, required=True)
@@ -144,10 +145,6 @@ def main():
 
     print(f"[*] RMSSD=[{rmssd}] SDANN=[{sdann}] HTI=[{hti}]")
 
-    # Start Button BG
-    root = tk.Tk()
-    root.title("HRV Project")
-
     # Define Data for GUI - if more graphs needed - insert here
     df1 = pd.DataFrame({"HRV Histogram Distribution": rr_hist})
     df2 = pd.DataFrame({"BPM Distribution": bpm_hist})
@@ -157,8 +154,8 @@ def main():
     root_plot = tk.Tk()
     root_plot.title("HRV Project")
 
-    # Set the window size to be 400x300 pixels
-    window_width = 1210
+    # Set the window size
+    window_width = 1300
     window_height = 350
 
     # Get the screen width and height
@@ -166,19 +163,21 @@ def main():
     screen_height = root_plot.winfo_screenheight()
 
     # Calculate the x and y coordinates to center the window
-    x = (screen_width / 2) - (window_width / 2)
-    y = (screen_height / 2) - (window_height / 2)
+    x = int((screen_width / 2) - (window_width / 2))
+    y = int((screen_height / 2) - (window_height / 2))
 
     # Set the window size and position
-    root_plot.geometry('%dx%d+%d+%d' % (window_width, window_height, x, y))
+    root_plot.geometry(f'{window_width}x{window_height}+{x}+{y}')
+    root_plot.resizable(False, False)
 
-    # Calc HVR and BMP
-    # TODO: Move to Arduino code
+    # Calculate HVR and BMP
+    RR_mean = 'Nan'
+    RR_sd = 'Nan'
+    avg_bpm = 'Nan'
     try:
         RR_mean = round(statistics.mean(rr_hist), 3)
         RR_sd = round(statistics.stdev(rr_hist), 3)
         avg_bpm = round(sum(bpm_hist) / len(bpm_hist), 3)
-
     except:
         pass
 
@@ -191,32 +190,33 @@ def main():
             super().__init__(master, *args, **kwargs)
             self.fig = Figure(figsize=(4, 3))
             ax = self.fig.add_subplot(111)
-            if (mean != -1):
+            if mean != -1:
                 ax.axvline(mean, color='k', linestyle='dashed', linewidth=1)
+
             df.hist(ax=ax, bins=50, color='purple')
             self.canvas = FigureCanvasTkAgg(self.fig, master=self)
             self.canvas.draw()
             self.canvas.get_tk_widget().grid(row=1, sticky="nesw")
 
-    # Creating the graphs
+    # Create the graphs
     for i in range(1, len(df_all) + 1):
         num = i - 1
         Graph(root_plot, df=df_all[i - 1], mean=mean_all_graphs[i - 1], width=300).grid(row=num // 2, column=num % 2)
 
-    # Writing all information to display
-    text = "RR intervals are distributed with mean " + str(RR_mean) + " and variance " + str(RR_sd) + '\n'
-    text2 = "The Avarge Bpm is: " + str(avg_bpm) + '\n'
-    text3 = "RMSSD is:" + str(rmssd) + '\n' + "SDANN is:" + str(sdann) + '\n' + "HTI is:" + str(hti) + '\n'
+    # Write all information to display
+    text = f"RR intervals are distributed with mean {str(RR_mean)} and variance {str(RR_sd)}\n"
+    text += f"The Avarge Bpm is: {str(avg_bpm)}\n"
+    text += f"RMSSD is: {str(rmssd)}\nSDANN is: {str(sdann)}\nHTI is: {str(hti)}\n"
 
-    # Displaying results
-    text_box = tk.Text(root_plot, width=50, height=10, wrap=tk.WORD, font='caliberi')
-    text_box.grid(row=0, column=2, sticky="nesw")
+    # Display results
+    text_box = tk.Text(root_plot, width=60, height=10, wrap=tk.WORD, font='caliberi')
+    text_box.grid(row=0, column=2, sticky='nesw')
     text_box.delete(0.0, "end")
-    text_box.insert(5.0, 'Results:\n' + text + text2 + text3)
+    text_box.insert(5.0, "Results:\n" + text)
 
     # Exit button
     exit_button = tk.Button(root_plot, text="Exit", command=exit_program, width=7, height=1)
-    exit_button.grid(column=1, row=1)
+    exit_button.place(relx=0.5, rely=0.95, anchor=tk.CENTER)
 
     root_plot.mainloop()
 
