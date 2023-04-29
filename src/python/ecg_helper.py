@@ -148,83 +148,77 @@ def main():
     root = tk.Tk()
     root.title("HRV Project")
 
-    # Define Data for GUI
-    df1 = pd.DataFrame(rr_hist)
-    df2 = pd.DataFrame(bpm_hist)
+    # Define Data for GUI - if more graphs needed - insert here
+    df1 = pd.DataFrame({"HRV Histogram Distribution": rr_hist})
+    df2 = pd.DataFrame({"BPM Distribution": bpm_hist})
+    df_all = (df1, df2)
 
-    def start_function():
-        # print("The start button has been clicked!")
+    # Plot BG defintion
+    root_plot = tk.Tk()
+    root_plot.title("HRV Project")
 
-        # Plot BG defintion
-        root_plot = tk.Tk()
-        root_plot.title("HRV Project")
+    # Set the window size to be 400x300 pixels
+    window_width = 1210
+    window_height = 350
 
-        # Set the window size to be 400x300 pixels
-        window_width = 1200
-        window_height = 600
+    # Get the screen width and height
+    screen_width = root_plot.winfo_screenwidth()
+    screen_height = root_plot.winfo_screenheight()
 
-        # Get the screen width and height
-        screen_width = root.winfo_screenwidth()
-        screen_height = root.winfo_screenheight()
+    # Calculate the x and y coordinates to center the window
+    x = (screen_width / 2) - (window_width / 2)
+    y = (screen_height / 2) - (window_height / 2)
 
-        # Calculate the x and y coordinates to center the window
-        x = (screen_width / 2) - (window_width / 2)
-        y = (screen_height / 2) - (window_height / 2)
+    # Set the window size and position
+    root_plot.geometry('%dx%d+%d+%d' % (window_width, window_height, x, y))
 
-        # Set the window size and position
-        root_plot.geometry('%dx%d+%d+%d' % (window_width, window_height, x, y))
-
-        # HRV Histogram Plot
-        figure1 = plt.Figure(figsize=(6, 5), dpi=100)
-        ax1 = figure1.add_subplot(111)
-        bar1 = FigureCanvasTkAgg(figure1, root_plot)
-        bar1.get_tk_widget().pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        ax1.hist(df1, bins=50)
-        ax1.grid(axis='y')
-        ax1.set_title('HRV Histogram Distribution')
-
-        # Calc HVR
-        # TODO: Move to Arduino code
-        try:
-            RR_mean = round(statistics.mean(rr_hist), 3)
-            RR_sd = round(statistics.stdev(rr_hist), 3)
-            text = "Your RR intervals are distributed with mean " + str(RR_mean) + " and variance " + str(RR_sd)
-            ax1.text(0.5, -0.1, text, transform=ax1.transAxes, ha='center')
-            ax1.axvline(RR_mean, color='k', linestyle='dashed', linewidth=1)
-        except:
-            pass
-
-        # BPM Plot
-        figure2 = plt.Figure(figsize=(5, 4), dpi=100)
-        ax2 = figure2.add_subplot(111)
-        line2 = FigureCanvasTkAgg(figure2, root_plot)
-        line2.get_tk_widget().pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        ax2.hist(df2, color='green', bins=50)
-        ax2.grid(axis='y')
-        ax2.set_title('BPM Distribution')
-
-        # Calc Avg BPM
+    # Calc HVR and BMP
+    # TODO: Move to Arduino code
+    try:
+        RR_mean = round(statistics.mean(rr_hist), 3)
+        RR_sd = round(statistics.stdev(rr_hist), 3)
         avg_bpm = round(sum(bpm_hist) / len(bpm_hist), 3)
-        text2 = "The Avarge Bpm is: " + str(avg_bpm)
-        ax2.text(0.5, -0.1, text2, transform=ax2.transAxes, ha='center')
 
-        try:
-            BPM_mean = round(statistics.mean(bpm_hist), 3)
-            ax2.axvline(BPM_mean, color='k', linestyle='dashed', linewidth=1)
-        except:
-            pass
+    except:
+        pass
 
-    def exit_program():
-        exit()
+    # If mean is not needed, write '-1' in the relevant cell
+    mean_all_graphs = [RR_mean, avg_bpm]
 
-    # Open Window buttons
-    start_button = tk.Button(root, text="Start", width=15, height=5, bg="purple", fg="yellow", command=start_function)
-    start_button.pack(pady=10)
+    # Plot for every parameter in name_of_graphs
+    class Graph(tk.Frame):
+        def __init__(self, master=None, df="", mean="", *args, **kwargs):
+            super().__init__(master, *args, **kwargs)
+            self.fig = Figure(figsize=(4, 3))
+            ax = self.fig.add_subplot(111)
+            if (mean != -1):
+                ax.axvline(mean, color='k', linestyle='dashed', linewidth=1)
+            df.hist(ax=ax, bins=50, color='purple')
+            self.canvas = FigureCanvasTkAgg(self.fig, master=self)
+            self.canvas.draw()
+            self.canvas.get_tk_widget().grid(row=1, sticky="nesw")
 
-    exit_button = tk.Button(root, text="Exit", command=exit_program)
-    exit_button.pack()
+    # Creating the graphs
+    for i in range(1, len(df_all) + 1):
+        num = i - 1
+        Graph(root_plot, df=df_all[i - 1], mean=mean_all_graphs[i - 1], width=300).grid(row=num // 2, column=num % 2)
 
-    root.mainloop()
+    # Writing all information to display
+    text = "RR intervals are distributed with mean " + str(RR_mean) + " and variance " + str(RR_sd) + '\n'
+    text2 = "The Avarge Bpm is: " + str(avg_bpm) + '\n'
+    text3 = "RMSSD is:" + str(rmssd) + '\n' + "SDANN is:" + str(sdann) + '\n' + "HTI is:" + str(hti) + '\n'
+
+    # Displaying results
+    text_box = tk.Text(root_plot, width=50, height=10, wrap=tk.WORD, font='caliberi')
+    text_box.grid(row=0, column=2, sticky="nesw")
+    text_box.delete(0.0, "end")
+    text_box.insert(5.0, 'Results:\n' + text + text2 + text3)
+
+    # Exit button
+    exit_button = tk.Button(root_plot, text="Exit", command=exit_program, width=7, height=1)
+    exit_button.grid(column=1, row=1)
+
+    root_plot.mainloop()
 
 if __name__ == "__main__":
     main()
