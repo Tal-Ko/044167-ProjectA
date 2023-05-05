@@ -72,20 +72,11 @@ def exit_program():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-s', '--samples', type=argparse.FileType('r'), required=True)
+    parser.add_argument('-s', '--samples', type=argparse.FileType('r'))
     parser.add_argument('-c', '--com', type=int, required=True)
     parser.add_argument('--cm', action='store_true')
+    parser.add_argument('--simulation', action='store_true')
     args = parser.parse_args()
-
-    # Read data from ECG samples
-    # Taken from https://archive.physionet.org/cgi-bin/atm/ATM
-    # Database: PTB Diagnostic ECG Database (ptbdb)
-    # https://www.kaggle.com/datasets/shayanfazeli/heartbeat?resource=download&select=ptbdb_normal.csv
-    # https://physionet.org/content/ecgiddb/1.0.0/#files-panel
-    # https://www.physionet.org/physiobank/database/ecgiddb/biometric.shtml
-    raw_csv = args.samples.readlines()
-    raw_csv_ecg = raw_csv[2:]
-    ecg_data = [float(raw_csv_ecg_item.strip().split(',')[1]) for raw_csv_ecg_item in raw_csv_ecg]
 
     # Initialize serial port
     ser = serial.Serial()
@@ -97,32 +88,51 @@ def main():
         print("\nAll right, serial port now open. Configuration:\n")
         print(ser, "\n")
 
-    print("[*] Writing samples data to CSV...")
+    if args.simulation:
+        # Read data from ECG samples
+        # Taken from https://archive.physionet.org/cgi-bin/atm/ATM
+        # Database: PTB Diagnostic ECG Database (ptbdb)
+        # https://www.kaggle.com/datasets/shayanfazeli/heartbeat?resource=download&select=ptbdb_normal.csv
+        # https://physionet.org/content/ecgiddb/1.0.0/#files-panel
+        # https://www.physionet.org/physiobank/database/ecgiddb/biometric.shtml
+        raw_csv = args.samples.readlines()
+        raw_csv_ecg = raw_csv[2:]
+        ecg_data = [float(raw_csv_ecg_item.strip().split(',')[1]) for raw_csv_ecg_item in raw_csv_ecg]
+
+        print("[*] Writing samples data to CSV...")
+
     print("[*] Please press the (matrix) button to start")
 
-    # https://stackoverflow.com/questions/71659042/sending-int-from-python-to-arduino-but-there-is-an-upper-limit-how-do-i-solve
-    # Convert from mV to V
-    ecg_data_for_serial = [f"s{int(ecg_sample * 1000)}".encode() for ecg_sample in ecg_data]
-    ecg_data_for_serial.append(b's1000')
-    for ecg_sample_serial in ecg_data_for_serial:
-        ser.write(ecg_sample_serial)
+    if args.simulation:
+        # https://stackoverflow.com/questions/71659042/sending-int-from-python-to-arduino-but-there-is-an-upper-limit-how-do-i-solve
+        # Convert from mV to V
+        ecg_data_for_serial = [f"s{int(ecg_sample * 1000)}".encode() for ecg_sample in ecg_data]
+        ecg_data_for_serial.append(b's1000')
+        for ecg_sample_serial in ecg_data_for_serial:
+            ser.write(ecg_sample_serial)
 
-    # Check if we're not in continuous mode
-    if not args.cm:
-        print("[*] Waiting for simulation to complete...")
+        # Check if we're not in continuous mode
+        if not args.cm:
+            print("[*] Waiting for simulation to complete...")
 
-        # Simulation length is ~10seconds
-        time_buffer = 1
-        simulation_time = 10
-        time.sleep(simulation_time + time_buffer)
+            # Simulation length is ~10seconds
+            time_buffer = 1
+            simulation_time = 10
+            time.sleep(simulation_time + time_buffer)
 
-        # Wait for simulation to complete
+            # Wait for simulation to complete
+            while True:
+                res = ser.readline()
+                if res.strip() == b'Simulation done!':
+                    break
+
+            print("[*] Simulation done!")
+    else:
+        # Wait for button press
         while True:
             res = ser.readline()
-            if res.strip() == b'Simulation done!':
+            if res.strip() == b'Starting to monitor':
                 break
-
-        print("[*] Simulation done!")
 
     print("[*] Please press the (matrix) button to stop monitoring")
 
@@ -146,7 +156,7 @@ def main():
     print(f"[*] RMSSD=[{rmssd}] SDANN=[{sdann}] HTI=[{hti}]")
 
     # Define Data for GUI - if more graphs needed - insert here
-    df1 = pd.DataFrame({"HRV Histogram Distribution": rr_hist})
+    df1 = pd.DataFrame({"RR Histogram Distribution": rr_hist})
     df2 = pd.DataFrame({"BPM Distribution": bpm_hist})
     df_all = (df1, df2)
 
