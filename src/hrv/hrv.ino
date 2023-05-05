@@ -1,6 +1,6 @@
 // Comment the following line if you want to run with real ECG signal
-#define SIMULATION
-#define CONTINUOUS_MODE
+//#define SIMULATION
+//#define CONTINUOUS_MODE
 
 ///////////////////////////////////////////////////////////////////////////////
 ////////////////////////////// 7 SEGMENT DISPLAY //////////////////////////////
@@ -10,7 +10,7 @@
 
 SevSeg sevseg;
 byte numDigits = 3;
-byte digitPins[] = {23, 24, 25, 26};
+byte digitPins[] = {23, 24, 25};
 byte segmentPins[] = {32, 30, 41, 43, 44, 34, 40, 42};
 
 bool resistorsOnSegments = true;
@@ -21,7 +21,7 @@ byte hardwareConfig = COMMON_CATHODE;
 //////////////////////////////////// STATE ////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-const int buttonPin = 2;
+const int buttonPin = 8;
 int buttonState = 0;
 
 bool monitoringDone = false;
@@ -35,9 +35,15 @@ bool simulationDone = false;
 bool alreadyPeaked = false;
 
 // TODO: Figure out these values for real ECG Signal
+#ifdef SIMULATION
 int ecgOffset = 0;
 int lowerThreshold = -400;
 int upperThreshold = 400;
+#else // !SIMULATION
+int ecgOffset = 0;
+int lowerThreshold = 400;
+int upperThreshold = 900;
+#endif
 
 #ifdef SIMULATION
 #define ECG_DATA_SIZE (10000)
@@ -266,11 +272,12 @@ void setup() {
          if (buttonState == HIGH) {
             break;
          }
+         SerialUSB.println(buttonState);
     } while (buttonState == LOW);
 
+#ifdef SIMULATION
     digitalWrite(LED_BUILTIN, HIGH);
 
-#ifdef SIMULATION
     while (SerialUSB.available() <= 0) {
         continue;
     }
@@ -280,6 +287,11 @@ void setup() {
         reading = SerialUSB.parseInt() - ecgOffset;
         ecgData[parsedSimulatedECGDataIndex++] = reading;
     } while (reading != 1000);
+#else   // !SIMULATION
+    // Wait a reasonable amount of time for the button press
+    // to be released.
+    delay(1500);
+    SerialUSB.println("Starting to monitor");
 #endif  // SIMULATION
 
     digitalWrite(LED_BUILTIN, LOW);
