@@ -59,7 +59,8 @@ const int ecgPin = A0;
 ///////////////////////////////////////////////////////////////////////////////
 #define BPM_HIST_NUM_BINS (220)
 #define RR_HIST_NUM_BINS (1200)
-#define MIN_RR_INTERVAL (250)
+#define MIN_RR_INTERVAL (250)       // Matches BPM of 240
+#define MAX_RR_INTERVAL (1500)      // Matches BPM of 40
 
 unsigned int rrIntervalsHistogram[RR_HIST_NUM_BINS] = {};
 unsigned int bpmHistogram[BPM_HIST_NUM_BINS + 1] = {};
@@ -366,7 +367,11 @@ void loop() {
             rrInterval = secondPeakTime - firstPeakTime;
 
             // Probably noise
-            if (rrInterval < MIN_RR_INTERVAL) {
+            if (rrInterval < MIN_RR_INTERVAL || rrInterval > MAX_RR_INTERVAL) {
+                // Reset the firstPeakTime since the current peak is invalid.
+                // This way we perform a soft reset on the monitoring process
+                // without invalidating the data we collected thus far.
+                firstPeakTime = 0;
                 goto refresh;
             }
 
