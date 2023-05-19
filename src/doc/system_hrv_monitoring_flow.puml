@@ -1,0 +1,30 @@
+@startuml
+
+actor User
+participant Button
+participant "Reset Button"
+participant "Arduino Due"
+participant LED #red
+participant 7Segment
+
+User --> Button : 1st Button Press
+Button --> "Arduino Due" : Initiate HRV Moniroting
+loop Monitoring Loop
+"Arduino Due" --> "Arduino Due" : Read analog pin
+"Arduino Due" --> "Arduino Due" : Process signal
+    alt Heart Beat Detected
+    "Arduino Due" --> LED : Blink
+    "Arduino Due" --> 7Segment : Display BPM
+    end
+end
+User --> Button : 2nd Button Press
+Button --> "Arduino Due" : Stop HRV Moniroting
+loop Command Listening Loop
+User --> "Arduino Due" : Command
+"Arduino Due" --> User : Measurement
+end
+User --> "Reset Button" : Press
+"Reset Button" --> "Arduino Due" : Clear measurements
+"Arduino Due" --> "Arduino Due" : Ready for monitoring
+
+@enduml
