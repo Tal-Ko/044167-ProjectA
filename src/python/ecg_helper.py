@@ -8,6 +8,9 @@ import serial
 import statistics
 import time
 import tkinter as tk
+import numpy.random as random
+from scipy.stats import norm
+import numpy as np
 
 class Actions(enum.IntEnum):
     RR_INTERVALS_HISTOGRAM = 1
@@ -193,17 +196,26 @@ def main():
 
     # If mean is not needed, write '-1' in the relevant cell
     mean_all_graphs = [RR_mean, avg_bpm]
+    ds_all_graphs = [RR_sd,-1] #add here bpm_sd
 
     # Plot for every parameter in name_of_graphs
     class Graph(tk.Frame):
-        def __init__(self, master=None, df="", mean="", *args, **kwargs):
+        def __init__(self, master=None, df="", mean="",sd = "", *args, **kwargs):
             super().__init__(master, *args, **kwargs)
             self.fig = Figure(figsize=(4, 3))
             ax = self.fig.add_subplot(111)
+            df.hist(ax=ax, bins=50, color='purple')
             if mean != -1:
                 ax.axvline(mean, color='k', linestyle='dashed', linewidth=1)
+            if sd != -1:
+                column_data = df.iloc[:, 0]
+                x = np.linspace(column_data.min(), column_data.max(), len(column_data))
+                y = norm.pdf(x, mean, sd) * len(column_data) * (column_data.max() - column_data.min()) / 50
+                ax.plot(x, y, color='blue', linewidth=1)
 
-            df.hist(ax=ax, bins=50, color='purple')
+            ax.set_xlabel('Values')  # Set the x-axis label
+            ax.set_ylabel('Amount of Samples')  # Set the y-axis label
+
             self.canvas = FigureCanvasTkAgg(self.fig, master=self)
             self.canvas.draw()
             self.canvas.get_tk_widget().grid(row=1, sticky="nesw")
@@ -211,7 +223,7 @@ def main():
     # Create the graphs
     for i in range(1, len(df_all) + 1):
         num = i - 1
-        Graph(root_plot, df=df_all[i - 1], mean=mean_all_graphs[i - 1], width=300).grid(row=num // 2, column=num % 2)
+        Graph(root_plot, df=df_all[i - 1], mean=mean_all_graphs[i - 1],sd=ds_all_graphs[i-1], width=300).grid(row=num // 2, column=num % 2)
 
     # Write all information to display
     text = f"RR intervals are distributed with mean {str(RR_mean)} and variance {str(RR_sd)}\n"
