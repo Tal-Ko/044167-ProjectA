@@ -207,10 +207,11 @@ def main():
     # If mean is not needed, write '-1' in the relevant cell
     mean_all_graphs = [RR_mean, avg_bpm]
     ds_all_graphs = [RR_sd, -1]
+    xlabels = ['RR [ms]', 'BPM [number of beats/minute]']
 
     # Plot for every parameter in name_of_graphs
     class Graph(tk.Frame):
-        def __init__(self, master=None, df="", mean=-1, sd=-1, *args, **kwargs):
+        def __init__(self, master=None, df="", mean=-1, sd=-1, xlabel=None, *args, **kwargs):
             super().__init__(master, *args, **kwargs)
             self.fig = Figure(figsize=(5, 4))
             ax = self.fig.add_subplot(111)
@@ -225,7 +226,10 @@ def main():
                 y = norm.pdf(x, mean, sd) * len(column_data) * (column_data.max() - column_data.min()) / 50
                 ax.plot(x, y, color='blue', linewidth=1)
 
-            ax.set_xlabel('Values')
+            if xlabel is None:
+                ax.set_xlabel('Values')
+            else:
+                ax.set_xlabel(xlabel)
             ax.set_ylabel('Amount of Samples')
 
             self.canvas = FigureCanvasTkAgg(self.fig, master=self)
@@ -237,7 +241,8 @@ def main():
         Graph(root_plot,
               df=df_all[i],
               mean=mean_all_graphs[i],
-              sd=ds_all_graphs[i]
+              sd=ds_all_graphs[i],
+              xlabel=xlabels[i]
         ).grid(row=i // 2, column=i % 2)
 
     # Write all information to display
