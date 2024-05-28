@@ -1,58 +1,22 @@
-// Comment the following line if you want to run with real ECG signal
-//#define SIMULATION
-//#define CONTINUOUS_MODE
+#include <ArduinoBLE.h>
 
-///////////////////////////////////////////////////////////////////////////////
-////////////////////////////// 7 SEGMENT DISPLAY //////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-// Credit: https://github.com/DeanIsMe/SevSeg
-#include "SevSeg.h"
+BLEService ledService("180A"); // BLE LED Service
 
-SevSeg sevseg;
-byte numDigits = 3;
-byte digitPins[] = {23, 24, 25};
-byte segmentPins[] = {32, 30, 41, 43, 44, 34, 40, 42};
+// BLE LED Switch Characteristic - custom 128-bit UUID, read and writable by central
+BLEByteCharacteristic switchCharacteristic("2A57", BLERead | BLEWrite);
 
-bool resistorsOnSegments = true;
-bool updateWithDelaysIn = true;
-byte hardwareConfig = COMMON_CATHODE;
-
-///////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////// STATE ////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-
-const int buttonPin = 8;
-int buttonState = 0;
-
-bool monitoringDone = false;
-#ifdef SIMULATION
-bool simulationDone = false;
-#endif  // SIMULATION
+bool isConnected = false;
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////// ECG /////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 bool alreadyPeaked = false;
 
-// TODO: Figure out these values for real ECG Signal
-#ifdef SIMULATION
 int ecgOffset = 0;
-int lowerThreshold = -400;
-int upperThreshold = 400;
-#else // !SIMULATION
-int ecgOffset = 0;
-int lowerThreshold = 400;
+int lowerThreshold = 600;
 int upperThreshold = 900;
-#endif
 
-#ifdef SIMULATION
-#define ECG_DATA_SIZE (10000)
-int parsedSimulatedECGDataIndex = 0;
-int ecgDataIndex = 0;
-int ecgData[ECG_DATA_SIZE];
-#else   // !SIMULATION
 const int ecgPin = A0;
-#endif  // SIMULATION
 
 ///////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////// RR /////////////////////////////////////
@@ -122,19 +86,19 @@ double hti = 0.0;
 void dumpRRIntervalHistogram() {
     // Dump RR histogram
     for (int i = 0; i < RR_HIST_NUM_BINS; ++i) {
-        SerialUSB.println(rrIntervalsHistogram[i]);
+        Serial.println(rrIntervalsHistogram[i]);
     }
 
-    SerialUSB.println("Done");
+    Serial.println("Done");
 }
 
 void dumpBPMHistogram() {
     // Dump BPM histogram
     for (int i = 0; i < BPM_HIST_NUM_BINS; ++i) {
-        SerialUSB.println(bpmHistogram[i]);
+        Serial.println(bpmHistogram[i]);
     }
 
-    SerialUSB.println("Done");
+    Serial.println("Done");
 }
 
 void dumpRMSSD() {
@@ -150,8 +114,8 @@ void dumpRMSSD() {
         rmssd = sqrt(rmssdSum / numRRDifferences);
     }
 
-    SerialUSB.println(rmssd);
-    SerialUSB.println("Done");
+    Serial.println(rmssd);
+    Serial.println("Done");
 }
 
 void dumpSDANN() {
@@ -172,8 +136,8 @@ void dumpSDANN() {
         sdann = sqrt(sdann / annIndex);
     }
 
-    SerialUSB.println(sdann);
-    SerialUSB.println("Done");
+    Serial.println(sdann);
+    Serial.println("Done");
 }
 
 void dumpHTI() {
@@ -192,8 +156,8 @@ void dumpHTI() {
         hti = rrIntervalHistogramDensity / rrIntervalHistogramHeight;
     }
 
-    SerialUSB.println(hti);
-    SerialUSB.println("Done");
+    Serial.println(hti);
+    Serial.println("Done");
 }
 
 void updateRRHistogram(unsigned long rrInterval) {
@@ -206,7 +170,8 @@ void updateBPMHistogram(unsigned long rrInterval) {
     float beatsPerMinute = (1.0/rrInterval) * 60.0 * 1000;
     int bpmi = min((int)(floor(beatsPerMinute)), BPM_HIST_NUM_BINS);
     bpmHistogram[bpmi]++;
-    sevseg.setNumber(bpmi);
+    Serial.println(bpmi);
+    // sevseg.setNumber(bpmi);
 }
 
 void updateRMSSDSum(unsigned long rrInterval) {
@@ -237,7 +202,7 @@ void updateSDANNSum(unsigned long rrInterval) {
 }
 
 void dispatchCommand() {
-    int action = SerialUSB.parseInt();
+    int action = Serial.parseInt();
     switch (action) {
         case 1:
             dumpRRIntervalHistogram();
@@ -260,93 +225,48 @@ void dispatchCommand() {
 }
 
 void setup() {
-    sevseg.begin(hardwareConfig, numDigits, digitPins, segmentPins, resistorsOnSegments);
-    sevseg.setBrightness(90);
+    Serial.begin(9600);
+    while (!Serial);
 
-    SerialUSB.begin(115200);
-    pinMode(LED_BUILTIN, OUTPUT);
-    pinMode(buttonPin, INPUT);
-
-    // Wait until the button is pressed before starting the program
-    do {
-         buttonState = digitalRead(buttonPin);
-         if (buttonState == HIGH) {
-            break;
-         }
-         SerialUSB.println(buttonState);
-    } while (buttonState == LOW);
-
-#ifdef SIMULATION
-    digitalWrite(LED_BUILTIN, HIGH);
-
-    while (SerialUSB.available() <= 0) {
-        continue;
+    // begin initialization
+    if (!BLE.begin()) {
+        Serial.println("Starting Bluetooth® Low Energy failed!");
+        while (1);
     }
 
-    int reading = 0;
-    do {
-        reading = SerialUSB.parseInt() - ecgOffset;
-        ecgData[parsedSimulatedECGDataIndex++] = reading;
-    } while (reading != 1000);
-#else   // !SIMULATION
-    // Wait a reasonable amount of time for the button press
-    // to be released.
-    delay(1500);
-    SerialUSB.println("Starting to monitor");
-#endif  // SIMULATION
+    // set advertised local name and service UUID:
+    BLE.setLocalName("Nano 33 BLE Rev2 HRV");
+    BLE.setAdvertisedService(ledService);
 
-    digitalWrite(LED_BUILTIN, LOW);
+    // add the characteristic to the service
+    ledService.addCharacteristic(switchCharacteristic);
+
+    // add service
+    BLE.addService(ledService);
+
+    // set the initial value for the characteristic:
+    switchCharacteristic.writeValue(0);
+
+    // start advertising
+    BLE.advertise();
+
+    Serial.println("BLE LED Peripheral");
+
     annTime = millis();
 }
 
 void loop() {
-    // Detect if button was pressed.
-    // If it was, stop collecting data and dump the results so far
-    buttonState = digitalRead(buttonPin);
-    if (buttonState == HIGH && !monitoringDone) {
-        monitoringDone = true;
-        digitalWrite(LED_BUILTIN, HIGH);
-        SerialUSB.println("Monitoring done!");
-        sevseg.blank();
+    // listen for BLE peripherals to connect:
+    BLEDevice central = BLE.central();
+
+    if (central && !isConnected) {
+        Serial.print("Connected to central: ");
+        Serial.println(central.address());
     }
 
-    if (monitoringDone) {
-        if (SerialUSB.available() > 0) {
-            dispatchCommand();
-        }
+    isConnected = central.connected();
 
-        delay(10);
-        return;
-    }
-
-#ifdef SIMULATION
-#ifdef CONTINUOUS_MODE
-    // Keep reading the same data over and over again
-    if (ecgDataIndex >= ECG_DATA_SIZE) {
-        ecgDataIndex = 0;
-    }
-
-    int ecgReading = ecgData[ecgDataIndex++];
-#else   // !CONTINUOUS_MODE
-    // Check if the simulation is finished
-    if (ecgDataIndex > parsedSimulatedECGDataIndex || simulationDone) {
-        // Print only once
-        if (!simulationDone) {
-            SerialUSB.println("Simulation done!");
-            simulationDone = true;
-            digitalWrite(LED_BUILTIN, LOW);
-        }
-
-        delay(10);
-        return;
-    }
-
-    // Otherwise parse the next sample
-    int ecgReading = ecgData[ecgDataIndex++];
-#endif  // CONTINUOUS_MODE
-#else   // !SIMULATION
     int ecgReading = analogRead(ecgPin) - ecgOffset;
-#endif  // SIMULATION
 
     // Measure the ECG reading minus an offset to bring it into the same
     // range as the heart rate (i.e. around 60 to 100 bpm)
@@ -356,7 +276,6 @@ void loop() {
         if (firstPeakTime == 0) {
             // If this is the very first peak, set the first peak time
             firstPeakTime = millis();
-            digitalWrite(LED_BUILTIN, HIGH);
         }
         else {
             // Otherwise set the second peak time and calculate the
@@ -381,7 +300,6 @@ void loop() {
             updateSDANNSum(rrInterval);
 
             firstPeakTime = secondPeakTime;
-            digitalWrite(LED_BUILTIN, HIGH);
         }
 
         alreadyPeaked = true;
@@ -391,10 +309,8 @@ void loop() {
         // Check if the ECG reading has fallen below the lower threshold
         // and if we are ready to detect another peak
         alreadyPeaked = false;
-        digitalWrite(LED_BUILTIN, LOW);
     }
 
 refresh:
-    sevseg.refreshDisplay();
     delay(1);
 }
