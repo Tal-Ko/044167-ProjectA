@@ -51,5 +51,11 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
-# Data folter
+# VSCode
+.vscode/
+
+# Data folder
 data/
+
+# Libraries
+libraries/

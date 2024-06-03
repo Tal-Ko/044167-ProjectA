@@ -1,11 +1,46 @@
 #include <ArduinoBLE.h>
 
-BLEService ledService("180A"); // BLE LED Service
+void SET_LED_WHITE() {
+    digitalWrite(LEDR, LOW);
+    digitalWrite(LEDG, LOW);
+    digitalWrite(LEDB, LOW);
+}
 
-// BLE LED Switch Characteristic - custom 128-bit UUID, read and writable by central
-BLEByteCharacteristic switchCharacteristic("2A57", BLERead | BLEWrite);
+void SET_LED_RED() {
+    digitalWrite(LEDR, LOW);
+    digitalWrite(LEDG, HIGH);
+    digitalWrite(LEDB, HIGH);
+}
 
-bool isConnected = false;
+void SET_LED_GREEN() {
+    digitalWrite(LEDR, HIGH);
+    digitalWrite(LEDG, LOW);
+    digitalWrite(LEDB, HIGH);
+}
+
+void SET_LED_BLUE() {
+    digitalWrite(LEDR, HIGH);
+    digitalWrite(LEDG, HIGH);
+    digitalWrite(LEDB, LOW);
+}
+
+void SET_LED_YELLOW() {
+    digitalWrite(LEDR, LOW);
+    digitalWrite(LEDG, LOW);
+    digitalWrite(LEDB, HIGH);
+}
+
+void SET_LED_MAGENTA() {
+    digitalWrite(LEDR, LOW);
+    digitalWrite(LEDG, HIGH);
+    digitalWrite(LEDB, LOW);
+}
+
+void SET_LED_CYAN() {
+    digitalWrite(LEDR, HIGH);
+    digitalWrite(LEDG, LOW);
+    digitalWrite(LEDB, LOW);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////// ECG /////////////////////////////////////
@@ -47,7 +82,7 @@ unsigned long rmssdSum = 0;
 
 // Number of samples in a 24hour period
 #define ANN_ARRAY_SIZE ((24 * 60 * 60 * 1000) / SDANN_INTERVAL)
-double ann[ANN_ARRAY_SIZE];
+double ann[ANN_ARRAY_SIZE] = {};
 unsigned int annIndex = 0;
 unsigned int annSum = 0;
 unsigned int annCount = 0;
@@ -80,25 +115,73 @@ double sdann = 0.0;
 double hti = 0.0;
 
 ///////////////////////////////////////////////////////////////////////////////
+/////////////////////////////// COMMUNICATION /////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+byte prevAction = 0;
+
+// Service
+const char* hrvServiceUUID = "0777dfa9-204b-11ef-8fea-646ee0fcbb46";
+
+// Commands
+const char* hrvCommandCharacteristicUUID = "07dba383-204b-11ef-a096-646ee0fcbb46";
+
+// Responses
+const char* hrvResponseCharacteristicUUID = "5f0b1b60-2177-11ef-971d-646ee0fcbb46";
+const char* hrvAckCharacteristicUUID = "5f7bcf44-2177-11ef-ac83-646ee0fcbb46";
+
+// Monitor
+const char* hrvBPMCharacteristicUUID = "45ed7702-21d5-11ef-8771-646ee0fcbb46";
+
+BLEService hrvService(hrvServiceUUID);
+BLEByteCharacteristic hrvCommandCharacteristic(hrvCommandCharacteristicUUID, BLEWrite);   // TODO: Maybe change to IntCharacteristic
+BLECharacteristic hrvResponseCharacteristic(hrvResponseCharacteristicUUID, BLERead | BLENotify, 2048);
+BLEBooleanCharacteristic hrvAckCharacteristic(hrvAckCharacteristicUUID, BLEWrite);
+BLEIntCharacteristic hrvBPMCharacteristic(hrvBPMCharacteristicUUID, BLERead | BLENotify);
+
+bool g_isConnected = false;
+bool g_running = false;
+bool g_acked = false;
+
+enum COMMANDS {
+    STANDBY = 0,
+
+    // Functional
+    START = 1,
+    PAUSE = 2,
+    RESET = 3,
+
+    // Monitoring
+    DUMP_RR_HISTOGRAM = 10,
+    DUMP_BPM_HISTOGRAM = 11,
+    DUMP_RMSSD = 12,
+    DUMP_SDANN = 13,
+    DUMP_HTI = 14,
+};
+
+// void waitForAck() {
+//     // Busy wait for ACK
+//     bool acked = false;
+//     do {
+//         acked = hrvAckCharacteristic.value();
+//         delay(1);
+//     } while (!acked);
+// }
+
+///////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////// ANALYSIS ///////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
 void dumpRRIntervalHistogram() {
     // Dump RR histogram
-    for (int i = 0; i < RR_HIST_NUM_BINS; ++i) {
-        Serial.println(rrIntervalsHistogram[i]);
-    }
-
-    Serial.println("Done");
+    hrvResponseCharacteristic.writeValue(rrIntervalsHistogram, sizeof(rrIntervalsHistogram) * sizeof(int));
+    // waitForAck()
 }
 
 void dumpBPMHistogram() {
     // Dump BPM histogram
-    for (int i = 0; i < BPM_HIST_NUM_BINS; ++i) {
-        Serial.println(bpmHistogram[i]);
-    }
-
-    Serial.println("Done");
+    hrvResponseCharacteristic.writeValue(bpmHistogram, sizeof(bpmHistogram) * sizeof(int));
+    // waitForAck()
 }
 
 void dumpRMSSD() {
@@ -111,11 +194,14 @@ void dumpRMSSD() {
 
         // We want number of differences not number of intervals, so minus 1
         numRRDifferences--;
-        rmssd = sqrt(rmssdSum / numRRDifferences);
+
+        if (numRRDifferences != 0) {
+            rmssd = sqrt(rmssdSum / numRRDifferences);
+        }
     }
 
-    Serial.println(rmssd);
-    Serial.println("Done");
+    hrvResponseCharacteristic.writeValue(&rmssd, sizeof(rmssd));
+    // waitForAck()
 }
 
 void dumpSDANN() {
@@ -136,8 +222,8 @@ void dumpSDANN() {
         sdann = sqrt(sdann / annIndex);
     }
 
-    Serial.println(sdann);
-    Serial.println("Done");
+    hrvResponseCharacteristic.writeValue(&sdann, sizeof(sdann));
+    // waitForAck()
 }
 
 void dumpHTI() {
@@ -153,11 +239,13 @@ void dumpHTI() {
             }
         }
 
-        hti = rrIntervalHistogramDensity / rrIntervalHistogramHeight;
+        if (rrIntervalHistogramHeight != 0) {
+            hti = rrIntervalHistogramDensity / rrIntervalHistogramHeight;
+        }
     }
 
-    Serial.println(hti);
-    Serial.println("Done");
+    hrvResponseCharacteristic.writeValue(&hti, sizeof(hti));
+    // waitForAck()
 }
 
 void updateRRHistogram(unsigned long rrInterval) {
@@ -170,8 +258,9 @@ void updateBPMHistogram(unsigned long rrInterval) {
     float beatsPerMinute = (1.0/rrInterval) * 60.0 * 1000;
     int bpmi = min((int)(floor(beatsPerMinute)), BPM_HIST_NUM_BINS);
     bpmHistogram[bpmi]++;
+
+    hrvBPMCharacteristic.writeValue(bpmi);
     Serial.println(bpmi);
-    // sevseg.setNumber(bpmi);
 }
 
 void updateRMSSDSum(unsigned long rrInterval) {
@@ -202,32 +291,97 @@ void updateSDANNSum(unsigned long rrInterval) {
 }
 
 void dispatchCommand() {
-    int action = Serial.parseInt();
+    int action = hrvCommandCharacteristic.value();
+    if (action == prevAction) {
+        return;
+    }
+
+    prevAction = action;
+    Serial.print("Received command: ");
+
     switch (action) {
-        case 1:
+        case STANDBY:
+            Serial.println("STANDBY");
+            SET_LED_CYAN();
+            break;
+        case START:
+            Serial.println("START");
+            g_running = true;
+            SET_LED_GREEN();
+            break;
+        case PAUSE:
+            Serial.println("PAUSE");
+            g_running = false;
+            SET_LED_RED();
+            break;
+        case RESET:
+            Serial.println("RESET");
+            resetAll();
+            break;
+        case DUMP_RR_HISTOGRAM:
+            Serial.println("DUMP_RR_HISTOGRAM");
             dumpRRIntervalHistogram();
             break;
-        case 2:
+        case DUMP_BPM_HISTOGRAM:
+            Serial.println("DUMP_BPM_HISTOGRAM");
             dumpBPMHistogram();
             break;
-        case 3:
+        case DUMP_RMSSD:
+            Serial.println("DUMP_RMSSD");
             dumpRMSSD();
             break;
-        case 4:
+        case DUMP_SDANN:
+            Serial.println("DUMP_SDANN");
             dumpSDANN();
             break;
-        case 5:
+        case DUMP_HTI:
+            Serial.println("DUMP_HTI");
             dumpHTI();
             break;
         default:
+            Serial.print("Unknown command : ");
+            Serial.println(action);
             break;
     }
+
+    Serial.println("Finished handling command");
 }
 
-void setup() {
+void resetAll() {
+    memset(rrIntervalsHistogram, 0, sizeof(rrIntervalsHistogram));
+    memset(bpmHistogram, 0, sizeof(bpmHistogram));
+    firstPeakTime = 0;
+    prevrrInterval = 0;
+    rrInterval = 0;
+    secondPeakTime = 0;
+
+    rmssdSum = 0;
+
+    memset(ann, 0, sizeof(ann));
+    annIndex = 0;
+    annSum = 0;
+    annCount = 0;
+    annTime = 0;
+
+    rmssd = 0;
+    sdann = 0;
+    hti = 0;
+
+    annTime = millis();
+
+    pinMode(LEDR, OUTPUT);
+    pinMode(LEDG, OUTPUT);
+    pinMode(LEDB, OUTPUT);
+
+    SET_LED_WHITE();
+}
+
+void SetupSerial() {
     Serial.begin(9600);
     while (!Serial);
+}
 
+void SetupBLE() {
     // begin initialization
     if (!BLE.begin()) {
         Serial.println("Starting Bluetooth® Low Energy failed!");
@@ -236,35 +390,50 @@ void setup() {
 
     // set advertised local name and service UUID:
     BLE.setLocalName("Nano 33 BLE Rev2 HRV");
-    BLE.setAdvertisedService(ledService);
+    BLE.setAdvertisedService(hrvService);
 
     // add the characteristic to the service
-    ledService.addCharacteristic(switchCharacteristic);
+    hrvService.addCharacteristic(hrvCommandCharacteristic);
+    hrvService.addCharacteristic(hrvResponseCharacteristic);
+    hrvService.addCharacteristic(hrvAckCharacteristic);
+    hrvService.addCharacteristic(hrvBPMCharacteristic);
 
     // add service
-    BLE.addService(ledService);
+    BLE.addService(hrvService);
 
     // set the initial value for the characteristic:
-    switchCharacteristic.writeValue(0);
+    hrvCommandCharacteristic.writeValue(STANDBY);
 
     // start advertising
     BLE.advertise();
 
-    Serial.println("BLE LED Peripheral");
+    Serial.println("BLE HRV Peripheral Ready");
+}
 
-    annTime = millis();
+void setup() {
+    SetupSerial();
+    SetupBLE();
+    resetAll();
 }
 
 void loop() {
     // listen for BLE peripherals to connect:
     BLEDevice central = BLE.central();
 
-    if (central && !isConnected) {
+    if (central && !g_isConnected) {
         Serial.print("Connected to central: ");
         Serial.println(central.address());
     }
 
-    isConnected = central.connected();
+    g_isConnected = central.connected();
+    if (g_isConnected) {
+        dispatchCommand();
+    }
+
+    if (!g_running) {
+        delay(10);
+        return;
+    }
 
     int ecgReading = analogRead(ecgPin) - ecgOffset;
 
