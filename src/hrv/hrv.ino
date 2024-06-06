@@ -120,6 +120,8 @@ double hti = 0.0;
 
 byte prevAction = 0;
 
+
+
 // Service
 const char* hrvServiceUUID = "0777dfa9-204b-11ef-8fea-646ee0fcbb46";
 
@@ -133,11 +135,15 @@ const char* hrvAckCharacteristicUUID = "5f7bcf44-2177-11ef-ac83-646ee0fcbb46";
 // Monitor
 const char* hrvBPMCharacteristicUUID = "45ed7702-21d5-11ef-8771-646ee0fcbb46";
 
+// Live
+const char* hrvLiveCharacteristicUUID = "f0a7ba94-2426-11ef-bb71-646ee0fcbb46";
+
 BLEService hrvService(hrvServiceUUID);
 BLEByteCharacteristic hrvCommandCharacteristic(hrvCommandCharacteristicUUID, BLEWrite);   // TODO: Maybe change to IntCharacteristic
 BLECharacteristic hrvResponseCharacteristic(hrvResponseCharacteristicUUID, BLERead | BLENotify, 2048);
 BLEBooleanCharacteristic hrvAckCharacteristic(hrvAckCharacteristicUUID, BLEWrite);
 BLEIntCharacteristic hrvBPMCharacteristic(hrvBPMCharacteristicUUID, BLERead | BLENotify);
+BLEIntCharacteristic hrvLiveCharacteristic(hrvLiveCharacteristicUUID, BLERead | BLENotify);
 
 bool g_isConnected = false;
 bool g_running = false;
@@ -397,6 +403,7 @@ void SetupBLE() {
     hrvService.addCharacteristic(hrvResponseCharacteristic);
     hrvService.addCharacteristic(hrvAckCharacteristic);
     hrvService.addCharacteristic(hrvBPMCharacteristic);
+    hrvService.addCharacteristic(hrvLiveCharacteristic);
 
     // add service
     BLE.addService(hrvService);
