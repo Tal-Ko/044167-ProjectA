@@ -120,8 +120,6 @@ double hti = 0.0;
 
 byte prevAction = 0;
 
-
-
 // Service
 const char* hrvServiceUUID = "0777dfa9-204b-11ef-8fea-646ee0fcbb46";
 
@@ -130,20 +128,20 @@ const char* hrvCommandCharacteristicUUID = "07dba383-204b-11ef-a096-646ee0fcbb46
 
 // Responses
 const char* hrvResponseCharacteristicUUID = "5f0b1b60-2177-11ef-971d-646ee0fcbb46";
-const char* hrvAckCharacteristicUUID = "5f7bcf44-2177-11ef-ac83-646ee0fcbb46";
 
 // Monitor
 const char* hrvBPMCharacteristicUUID = "45ed7702-21d5-11ef-8771-646ee0fcbb46";
 
 // Live
-const char* hrvLiveCharacteristicUUID = "f0a7ba94-2426-11ef-bb71-646ee0fcbb46";
+const char* hrvLiveSignalCharacteristicUUID = "f0a7ba94-2426-11ef-bb71-646ee0fcbb46";
+const char* hrvLiveRRCharacteristicUUID = "f187ef45-2426-11ef-bb71-646ee0fcbb46";
 
 BLEService hrvService(hrvServiceUUID);
-BLEByteCharacteristic hrvCommandCharacteristic(hrvCommandCharacteristicUUID, BLEWrite);   // TODO: Maybe change to IntCharacteristic
-BLECharacteristic hrvResponseCharacteristic(hrvResponseCharacteristicUUID, BLERead | BLENotify, 2048);
-BLEBooleanCharacteristic hrvAckCharacteristic(hrvAckCharacteristicUUID, BLEWrite);
+BLEIntCharacteristic hrvCommandCharacteristic(hrvCommandCharacteristicUUID, BLEWrite);
+BLEDoubleCharacteristic hrvResponseCharacteristic(hrvResponseCharacteristicUUID, BLERead | BLENotify);
 BLEIntCharacteristic hrvBPMCharacteristic(hrvBPMCharacteristicUUID, BLERead | BLENotify);
-BLEIntCharacteristic hrvLiveCharacteristic(hrvLiveCharacteristicUUID, BLERead | BLENotify);
+BLEIntCharacteristic hrvLiveSignalCharacteristic(hrvLiveSignalCharacteristicUUID, BLERead | BLENotify);
+BLEIntCharacteristic hrvLiveRRCharacteristic(hrvLiveRRCharacteristicUUID, BLERead | BLENotify);
 
 bool g_isConnected = false;
 bool g_running = false;
@@ -158,37 +156,14 @@ enum COMMANDS {
     RESET = 3,
 
     // Monitoring
-    DUMP_RR_HISTOGRAM = 10,
-    DUMP_BPM_HISTOGRAM = 11,
-    DUMP_RMSSD = 12,
-    DUMP_SDANN = 13,
-    DUMP_HTI = 14,
+    DUMP_RMSSD = 10,
+    DUMP_SDANN = 11,
+    DUMP_HTI = 12,
 };
-
-// void waitForAck() {
-//     // Busy wait for ACK
-//     bool acked = false;
-//     do {
-//         acked = hrvAckCharacteristic.value();
-//         delay(1);
-//     } while (!acked);
-// }
 
 ///////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////// ANALYSIS ///////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-
-void dumpRRIntervalHistogram() {
-    // Dump RR histogram
-    hrvResponseCharacteristic.writeValue(rrIntervalsHistogram, sizeof(rrIntervalsHistogram) * sizeof(int));
-    // waitForAck()
-}
-
-void dumpBPMHistogram() {
-    // Dump BPM histogram
-    hrvResponseCharacteristic.writeValue(bpmHistogram, sizeof(bpmHistogram) * sizeof(int));
-    // waitForAck()
-}
 
 void dumpRMSSD() {
     if (rmssd == 0.0) {
@@ -206,8 +181,7 @@ void dumpRMSSD() {
         }
     }
 
-    hrvResponseCharacteristic.writeValue(&rmssd, sizeof(rmssd));
-    // waitForAck()
+    hrvResponseCharacteristic.writeValue(rmssd);
 }
 
 void dumpSDANN() {
@@ -228,8 +202,7 @@ void dumpSDANN() {
         sdann = sqrt(sdann / annIndex);
     }
 
-    hrvResponseCharacteristic.writeValue(&sdann, sizeof(sdann));
-    // waitForAck()
+    hrvResponseCharacteristic.writeValue(sdann);
 }
 
 void dumpHTI() {
@@ -250,8 +223,7 @@ void dumpHTI() {
         }
     }
 
-    hrvResponseCharacteristic.writeValue(&hti, sizeof(hti));
-    // waitForAck()
+    hrvResponseCharacteristic.writeValue(hti);
 }
 
 void updateRRHistogram(unsigned long rrInterval) {
@@ -266,7 +238,6 @@ void updateBPMHistogram(unsigned long rrInterval) {
     bpmHistogram[bpmi]++;
 
     hrvBPMCharacteristic.writeValue(bpmi);
-    Serial.println(bpmi);
 }
 
 void updateRMSSDSum(unsigned long rrInterval) {
@@ -323,14 +294,6 @@ void dispatchCommand() {
         case RESET:
             Serial.println("RESET");
             resetAll();
-            break;
-        case DUMP_RR_HISTOGRAM:
-            Serial.println("DUMP_RR_HISTOGRAM");
-            dumpRRIntervalHistogram();
-            break;
-        case DUMP_BPM_HISTOGRAM:
-            Serial.println("DUMP_BPM_HISTOGRAM");
-            dumpBPMHistogram();
             break;
         case DUMP_RMSSD:
             Serial.println("DUMP_RMSSD");
@@ -401,9 +364,9 @@ void SetupBLE() {
     // add the characteristic to the service
     hrvService.addCharacteristic(hrvCommandCharacteristic);
     hrvService.addCharacteristic(hrvResponseCharacteristic);
-    hrvService.addCharacteristic(hrvAckCharacteristic);
     hrvService.addCharacteristic(hrvBPMCharacteristic);
-    hrvService.addCharacteristic(hrvLiveCharacteristic);
+    hrvService.addCharacteristic(hrvLiveSignalCharacteristic);
+    hrvService.addCharacteristic(hrvLiveRRCharacteristic);
 
     // add service
     BLE.addService(hrvService);
@@ -443,6 +406,7 @@ void loop() {
     }
 
     int ecgReading = analogRead(ecgPin) - ecgOffset;
+    hrvLiveSignalCharacteristic.writeValue(ecgReading);
 
     // Measure the ECG reading minus an offset to bring it into the same
     // range as the heart rate (i.e. around 60 to 100 bpm)
@@ -460,6 +424,7 @@ void loop() {
             // again
             secondPeakTime = millis();
             rrInterval = secondPeakTime - firstPeakTime;
+            hrvLiveRRCharacteristic.writeValue(rrInterval);
 
             // Probably noise
             if (rrInterval < MIN_RR_INTERVAL || rrInterval > MAX_RR_INTERVAL) {
