@@ -192,7 +192,7 @@ void dumpSDANN() {
             sum += ann[i];
         }
 
-        double mean = sum / annIndex;
+        double mean = sum / (double)annIndex;
 
         // Calculate the standard deviation
         for (int i = 0; i < annIndex; ++i) {
@@ -233,7 +233,7 @@ void updateRRHistogram(unsigned long rrInterval) {
 void updateBPMHistogram(unsigned long rrInterval) {
     // Calculate the beats per minute, rrInterval is measured in
     // milliseconds so we must multiply by 1000
-    float beatsPerMinute = (1.0/rrInterval) * 60.0 * 1000;
+    float beatsPerMinute = (1.0 / rrInterval) * 60.0 * 1000;
     int bpmi = min((int)(floor(beatsPerMinute)), BPM_HIST_NUM_BINS);
     bpmHistogram[bpmi]++;
 
@@ -345,15 +345,16 @@ void resetAll() {
     SET_LED_WHITE();
 }
 
-void SetupSerial() {
+void setupSerial() {
     Serial.begin(9600);
     while (!Serial);
 }
 
-void SetupBLE() {
+void setupBLE() {
     // begin initialization
     if (!BLE.begin()) {
         Serial.println("Starting Bluetooth® Low Energy failed!");
+        SET_LED_BLUE();
         while (1);
     }
 
@@ -381,13 +382,12 @@ void SetupBLE() {
 }
 
 void setup() {
-    SetupSerial();
-    SetupBLE();
+    setupSerial();
+    setupBLE();
     resetAll();
 }
 
 void loop() {
-    // listen for BLE peripherals to connect:
     BLEDevice central = BLE.central();
 
     if (central && !g_isConnected) {
@@ -406,25 +406,27 @@ void loop() {
     }
 
     int ecgReading = analogRead(ecgPin) - ecgOffset;
-    hrvLiveSignalCharacteristic.writeValue(ecgReading);
+
+    // We might've started running and then disconnected from the central
+    if (g_isConnected) {
+        hrvLiveSignalCharacteristic.writeValue(ecgReading);
+    }
 
     // Measure the ECG reading minus an offset to bring it into the same
     // range as the heart rate (i.e. around 60 to 100 bpm)
-    if (ecgReading > upperThreshold && alreadyPeaked == false) {
+    if (ecgReading > upperThreshold && !alreadyPeaked) {
         // Check if the ECG reading is above the upper threshold and that
         // we aren't already in an existing peak
         if (firstPeakTime == 0) {
             // If this is the very first peak, set the first peak time
             firstPeakTime = millis();
-        }
-        else {
+        } else {
             // Otherwise set the second peak time and calculate the
             // R-to-R interval. Once calculated we shift the second
             // peak to become our first peak and start the process
             // again
             secondPeakTime = millis();
             rrInterval = secondPeakTime - firstPeakTime;
-            hrvLiveRRCharacteristic.writeValue(rrInterval);
 
             // Probably noise
             if (rrInterval < MIN_RR_INTERVAL || rrInterval > MAX_RR_INTERVAL) {
@@ -433,6 +435,11 @@ void loop() {
                 // without invalidating the data we collected thus far.
                 firstPeakTime = 0;
                 goto refresh;
+            }
+
+            // We might've started running and then disconnected from the central
+            if (g_isConnected) {
+                hrvLiveRRCharacteristic.writeValue(rrInterval);
             }
 
             updateRRHistogram(rrInterval);
