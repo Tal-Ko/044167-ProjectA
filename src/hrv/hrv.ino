@@ -145,7 +145,6 @@ BLEIntCharacteristic hrvLiveRRCharacteristic(hrvLiveRRCharacteristicUUID, BLERea
 
 bool g_isConnected = false;
 bool g_running = false;
-bool g_acked = false;
 
 enum COMMANDS {
     STANDBY = 0,
@@ -160,6 +159,9 @@ enum COMMANDS {
     DUMP_SDANN = 11,
     DUMP_HTI = 12,
 };
+
+int lastSigTimestamp = 0;
+const int sigDeltaT = 100;
 
 ///////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////// ANALYSIS ///////////////////////////////////
@@ -203,6 +205,8 @@ void dumpSDANN() {
     }
 
     hrvResponseCharacteristic.writeValue(sdann);
+    Serial.print("sdann: ");
+    Serial.println(sdann);
 }
 
 void dumpHTI() {
@@ -224,6 +228,8 @@ void dumpHTI() {
     }
 
     hrvResponseCharacteristic.writeValue(hti);
+    Serial.print("hti: ");
+    Serial.println(hti);
 }
 
 void updateRRHistogram(unsigned long rrInterval) {
@@ -238,6 +244,8 @@ void updateBPMHistogram(unsigned long rrInterval) {
     bpmHistogram[bpmi]++;
 
     hrvBPMCharacteristic.writeValue(bpmi);
+    Serial.print("bpmi: ");
+    Serial.println(bpmi);
 }
 
 void updateRMSSDSum(unsigned long rrInterval) {
@@ -284,6 +292,7 @@ void dispatchCommand() {
         case START:
             Serial.println("START");
             g_running = true;
+            lastSigTimestamp = millis();
             SET_LED_GREEN();
             break;
         case PAUSE:
@@ -409,7 +418,10 @@ void loop() {
 
     // We might've started running and then disconnected from the central
     if (g_isConnected) {
-        hrvLiveSignalCharacteristic.writeValue(ecgReading);
+        if (millis() - lastSigTimestamp > sigDeltaT) {
+            hrvLiveSignalCharacteristic.writeValue(ecgReading);
+            lastSigTimestamp = millis();
+        }
     }
 
     // Measure the ECG reading minus an offset to bring it into the same
