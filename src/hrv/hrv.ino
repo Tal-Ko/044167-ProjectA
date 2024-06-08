@@ -57,11 +57,11 @@ const int ecgPin = A0;
 ////////////////////////////////////// RR /////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 #define BPM_HIST_NUM_BINS (220)
-#define RR_HIST_NUM_BINS (1200)
+#define RR_HIST_NUM_BINS (1500)
 #define MIN_RR_INTERVAL (250)       // Matches BPM of 240
 #define MAX_RR_INTERVAL (1500)      // Matches BPM of 40
 
-unsigned int rrIntervalsHistogram[RR_HIST_NUM_BINS] = {};
+unsigned int rrIntervalsHistogram[RR_HIST_NUM_BINS + 1] = {};
 unsigned int bpmHistogram[BPM_HIST_NUM_BINS + 1] = {};
 
 unsigned long firstPeakTime = 0;
@@ -161,7 +161,7 @@ enum COMMANDS {
 };
 
 int lastSigTimestamp = 0;
-const int sigDeltaT = 100;
+const int sigDeltaT = 50;
 
 ///////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////// ANALYSIS ///////////////////////////////////
@@ -260,6 +260,9 @@ void updateRMSSDSum(unsigned long rrInterval) {
 }
 
 void updateSDANNSum(unsigned long rrInterval) {
+    annSum += rrInterval;
+    annCount++;
+
     // If at least SDANN_INTERVAL milliseconds passed since annTime
     if (secondPeakTime - annTime >= SDANN_INTERVAL) {
         // Save the average NN over the current time period
@@ -270,9 +273,6 @@ void updateSDANNSum(unsigned long rrInterval) {
         annSum = 0;
         annCount = 0;
     }
-
-    annSum += rrInterval;
-    annCount++;
 }
 
 void dispatchCommand() {
@@ -357,6 +357,7 @@ void resetAll() {
 void setupSerial() {
     Serial.begin(9600);
     while (!Serial);
+    Serial.println("Serial connected");
 }
 
 void setupBLE() {
@@ -404,13 +405,18 @@ void loop() {
         Serial.println(central.address());
     }
 
+    if (g_isConnected && (!central || !central.connected())) {
+        Serial.println("Disconnected from central");
+        BLE.disconnect();
+    }
+
     g_isConnected = central.connected();
     if (g_isConnected) {
         dispatchCommand();
     }
 
     if (!g_running) {
-        delay(10);
+        delay(100);
         return;
     }
 
