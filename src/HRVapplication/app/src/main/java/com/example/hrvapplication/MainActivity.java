@@ -39,6 +39,7 @@ import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 
@@ -226,6 +227,9 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
 
         sampleCount = 0;
         xIndex = 0;
+
+        Arrays.fill(rrIntervalsHistogram, 0);
+        Arrays.fill(bpmHistogram, 0);
     }
 
     @Override
