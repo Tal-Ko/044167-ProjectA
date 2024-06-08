@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity"
+    tools:ignore="ExtraText">
+
+    <Button
+        android:id="@+id/start_button"
+        android:layout_width="122dp"
+        android:layout_height="60dp"
+        android:text="@string/start"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/pause_button"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.186" />
+
+    <Button
+        android:id="@+id/pause_button"
+        android:layout_width="122dp"
+        android:layout_height="60dp"
+        android:text="@string/pause"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/finish_button"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toEndOf="@+id/start_button"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.186" />
+
+    <Button
+        android:id="@+id/finish_button"
+        android:layout_width="122dp"
+        android:layout_height="60dp"
+        android:text="@string/finish"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/pause_button"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.186" />
+
+    <Button
+        android:id="@+id/BT_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/bt_connect"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.062" />
+
+    <Button
+        android:id="@+id/switch_Signalview_button"
+        android:layout_width="117dp"
+        android:layout_height="39dp"
+        android:text="@string/live_view"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.054"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.976" />
+
+    <Button
+        android:id="@+id/switch_RRview_button"
+        android:layout_width="117dp"
+        android:layout_height="39dp"
+        android:text="@string/rr_view"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.493"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.976" />
+
+    <Button
+        android:id="@+id/switch_BPMview_button"
+        android:layout_width="117dp"
+        android:layout_height="39dp"
+        android:text="@string/bpm_view"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.928"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.976" />
+
+    <TextView
+        android:id="@+id/Pulse"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textAlignment="center"
+        android:textSize="48sp"
+        android:typeface="sans"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/pause_button"
+        app:layout_constraintVertical_bias="0.079" />
+
+    <TextView
+        android:id="@+id/HTILabel"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:fontFamily="sans-serif"
+        android:text="@string/hti"
+        android:visibility="invisible"
+        app:layout_constraintBottom_toTopOf="@+id/graphTitle"
+        app:layout_constraintEnd_toStartOf="@+id/pause_button"
+        app:layout_constraintStart_toStartOf="@+id/start_button"
+        app:layout_constraintTop_toBottomOf="@+id/Pulse" />
+
+    <TextView
+        android:id="@+id/SDANNLabel"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:lineSpacingExtra="20sp"
+        android:text="@string/sdann"
+        android:visibility="invisible"
+        app:layout_constraintBottom_toBottomOf="@+id/HTILabel"
+        app:layout_constraintEnd_toEndOf="@+id/finish_button"
+        app:layout_constraintStart_toStartOf="@+id/start_button" />
+
+    <TextView
+        android:id="@+id/RMSSDLabel"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:lineSpacingExtra="20sp"
+        android:text="@string/rmssd"
+        android:visibility="invisible"
+        app:layout_constraintBottom_toBottomOf="@+id/SDANNLabel"
+        app:layout_constraintEnd_toEndOf="@+id/finish_button"
+        app:layout_constraintStart_toEndOf="@+id/pause_button" />
+
+    <TextView
+        android:id="@+id/graphTitle"
+        android:layout_width="360dp"
+        android:layout_height="wrap_content"
+        android:text="@string/live_signal"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toTopOf="@+id/liveSignalYLabel"
+        app:layout_constraintStart_toStartOf="@+id/liveSignalYLabel"
+        app:layout_constraintTop_toBottomOf="@+id/Pulse"
+        app:layout_constraintVertical_bias="0.893" />
+
+    <TextView
+        android:id="@+id/liveSignalYLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_centerVertical="true"
+        android:text="@string/signal_mv"
+        android:textSize="11sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.03"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.604" />
+
+    <com.github.mikephil.charting.charts.BarChart
+        android:id="@+id/histogramChart"
+        android:layout_width="0dp"
+        android:layout_height="200dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:background="@android:color/white"
+        android:visibility="invisible"
+        app:layout_constraintBottom_toTopOf="@+id/switch_RRview_button"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/liveSignalYLabel" />"/>
+
+    <com.github.mikephil.charting.charts.LineChart
+        android:id="@+id/ECGLiveSignal"
+        android:layout_width="0dp"
+        android:layout_height="200dp"
+        android:background="@android:color/white"
+        android:visibility="visible"
+        app:layout_constraintBottom_toBottomOf="@+id/histogramChart"
+        app:layout_constraintEnd_toEndOf="@+id/histogramChart"
+        app:layout_constraintStart_toStartOf="@+id/histogramChart" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
