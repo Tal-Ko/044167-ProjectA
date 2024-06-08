@@ -91,8 +91,9 @@
 
     <TextView
         android:id="@+id/Pulse"
-        android:layout_width="wrap_content"
+        android:layout_width="120dp"
         android:layout_height="wrap_content"
+        android:gravity="center"
         android:textAlignment="center"
         android:textSize="48sp"
         android:typeface="sans"
