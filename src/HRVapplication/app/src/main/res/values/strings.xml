@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">HRV application</string>
+    <string name="signal_mv">Signal [mV]</string>
+    <string name="live_signal">Live Signal</string>
+    <string name="rmssd">RMSSD:</string>
+    <string name="sdann">SDANN:</string>
+    <string name="hti">HTI:</string>
+    <string name="bpm_view">BPM View</string>
+    <string name="rr_view">RR View</string>
+    <string name="live_view">Live View</string>
+    <string name="bt_connect">BT connect</string>
+    <string name="finish">Finish</string>
+    <string name="pause">Pause</string>
+    <string name="start">Start</string>
+</resources>
