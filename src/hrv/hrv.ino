@@ -1,5 +1,21 @@
 #include <ArduinoBLE.h>
 
+// Undef this when not using a USB
+#define USB_DEBUGGING
+
+#ifdef USB_DEBUGGING
+#define SERIAL_PRINTLN(msg) do {    \
+    Serial.println(msg);            \
+} while (0);
+
+#define SERIAL_PRINT(msg) do {      \
+    Serial.print(msg);              \
+} while (0);
+#else  // !USB_DEBUGGING
+#define SERIAL_PRINTLN(msg)
+#define SERIAL_PRINT(msg)
+#endif  // USB_DEBUGGING
+
 void SET_LED_WHITE() {
     digitalWrite(LEDR, LOW);
     digitalWrite(LEDG, LOW);
@@ -205,8 +221,8 @@ void dumpSDANN() {
     }
 
     hrvResponseCharacteristic.writeValue(sdann);
-    Serial.print("sdann: ");
-    Serial.println(sdann);
+    SERIAL_PRINT("sdann: ");
+    SERIAL_PRINTLN(sdann);
 }
 
 void dumpHTI() {
@@ -228,8 +244,8 @@ void dumpHTI() {
     }
 
     hrvResponseCharacteristic.writeValue(hti);
-    Serial.print("hti: ");
-    Serial.println(hti);
+    SERIAL_PRINT("hti: ");
+    SERIAL_PRINTLN(hti);
 }
 
 void updateRRHistogram(unsigned long rrInterval) {
@@ -244,8 +260,8 @@ void updateBPMHistogram(unsigned long rrInterval) {
     bpmHistogram[bpmi]++;
 
     hrvBPMCharacteristic.writeValue(bpmi);
-    Serial.print("bpmi: ");
-    Serial.println(bpmi);
+    SERIAL_PRINT("bpmi: ");
+    SERIAL_PRINTLN(bpmi);
 }
 
 void updateRMSSDSum(unsigned long rrInterval) {
@@ -282,47 +298,47 @@ void dispatchCommand() {
     }
 
     prevAction = action;
-    Serial.print("Received command: ");
+    SERIAL_PRINT("Received command: ");
 
     switch (action) {
         case STANDBY:
-            Serial.println("STANDBY");
+            SERIAL_PRINTLN("STANDBY");
             SET_LED_CYAN();
             break;
         case START:
-            Serial.println("START");
+            SERIAL_PRINTLN("START");
             g_running = true;
             lastSigTimestamp = millis();
             SET_LED_GREEN();
             break;
         case PAUSE:
-            Serial.println("PAUSE");
+            SERIAL_PRINTLN("PAUSE");
             g_running = false;
             SET_LED_RED();
             break;
         case RESET:
-            Serial.println("RESET");
+            SERIAL_PRINTLN("RESET");
             resetAll();
             break;
         case DUMP_RMSSD:
-            Serial.println("DUMP_RMSSD");
+            SERIAL_PRINTLN("DUMP_RMSSD");
             dumpRMSSD();
             break;
         case DUMP_SDANN:
-            Serial.println("DUMP_SDANN");
+            SERIAL_PRINTLN("DUMP_SDANN");
             dumpSDANN();
             break;
         case DUMP_HTI:
-            Serial.println("DUMP_HTI");
+            SERIAL_PRINTLN("DUMP_HTI");
             dumpHTI();
             break;
         default:
-            Serial.print("Unknown command : ");
-            Serial.println(action);
+            SERIAL_PRINT("Unknown command : ");
+            SERIAL_PRINTLN(action);
             break;
     }
 
-    Serial.println("Finished handling command");
+    SERIAL_PRINTLN("Finished handling command");
 }
 
 void resetAll() {
@@ -357,13 +373,13 @@ void resetAll() {
 void setupSerial() {
     Serial.begin(9600);
     while (!Serial);
-    Serial.println("Serial connected");
+    SERIAL_PRINTLN("Serial connected");
 }
 
 void setupBLE() {
     // begin initialization
     if (!BLE.begin()) {
-        Serial.println("Starting Bluetooth® Low Energy failed!");
+        SERIAL_PRINTLN("Starting Bluetooth® Low Energy failed!");
         SET_LED_BLUE();
         while (1);
     }
@@ -388,11 +404,13 @@ void setupBLE() {
     // start advertising
     BLE.advertise();
 
-    Serial.println("BLE HRV Peripheral Ready");
+    SERIAL_PRINTLN("BLE HRV Peripheral Ready");
 }
 
 void setup() {
+#ifdef USB_DEBUGGING
     setupSerial();
+#endif  // USB_DEBUGGING
     setupBLE();
     resetAll();
 }
@@ -401,12 +419,12 @@ void loop() {
     BLEDevice central = BLE.central();
 
     if (central && !g_isConnected) {
-        Serial.print("Connected to central: ");
-        Serial.println(central.address());
+        SERIAL_PRINT("Connected to central: ");
+        SERIAL_PRINTLN(central.address());
     }
 
     if (g_isConnected && (!central || !central.connected())) {
-        Serial.println("Disconnected from central");
+        SERIAL_PRINTLN("Disconnected from central");
         BLE.disconnect();
     }
 
