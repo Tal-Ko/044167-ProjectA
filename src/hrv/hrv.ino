@@ -3,6 +3,9 @@
 // Undef this when not using a USB
 #define USB_DEBUGGING
 
+// Undef this to print the live signal to the serial connection
+#define DEBUG_LIVE_SIGNAL
+
 #ifdef USB_DEBUGGING
 #define SERIAL_PRINTLN(msg) do {    \
     Serial.println(msg);            \
@@ -64,7 +67,7 @@ void SET_LED_CYAN() {
 bool alreadyPeaked = false;
 
 int ecgOffset = 0;
-int lowerThreshold = 600;
+int lowerThreshold = 300;
 int upperThreshold = 900;
 
 const int ecgPin = A0;
@@ -439,12 +442,22 @@ void loop() {
     }
 
     int ecgReading = analogRead(ecgPin) - ecgOffset;
+#ifdef DEBUG_LIVE_SIGNAL
+    SERIAL_PRINTLN(ecgReading);
+#endif // DEBUG_LIVE_SIGNAL
 
     // We might've started running and then disconnected from the central
     if (g_isConnected) {
+        // Don't overwhelm the application. Only send a live signal reading
+        // every sigDeltaT ms.
         if (millis() - lastSigTimestamp > sigDeltaT) {
             hrvLiveSignalCharacteristic.writeValue(ecgReading);
             lastSigTimestamp = millis();
+        } else if (ecgReading > upperThreshold || ecgReading > lowerThreshold) {
+            // However if the signal is above the high threshold it means that
+            // this is part of the R wave. If it's under the lower threshold it
+            // means that it is part of the S wave. We want these values.
+            hrvLiveSignalCharacteristic.writeValue(ecgReading);
         }
     }
 
