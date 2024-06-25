@@ -4,7 +4,7 @@
 #define USB_DEBUGGING
 
 // Undef this to print the live signal to the serial connection
-#define DEBUG_LIVE_SIGNAL
+// #define DEBUG_LIVE_SIGNAL
 
 #ifdef USB_DEBUGGING
 #define SERIAL_PRINTLN(msg) do {    \
@@ -45,14 +45,14 @@ void SET_LED_BLUE() {
 
 void SET_LED_YELLOW() {
     digitalWrite(LEDR, LOW);
-    digitalWrite(LEDG, LOW);
-    digitalWrite(LEDB, HIGH);
+    digitalWrite(LEDG, HIGH);
+    digitalWrite(LEDB, LOW);
 }
 
 void SET_LED_MAGENTA() {
     digitalWrite(LEDR, LOW);
-    digitalWrite(LEDG, HIGH);
-    digitalWrite(LEDB, LOW);
+    digitalWrite(LEDG, LOW);
+    digitalWrite(LEDB, HIGH);
 }
 
 void SET_LED_CYAN() {
@@ -424,11 +424,12 @@ void loop() {
     if (central && !g_isConnected) {
         SERIAL_PRINT("Connected to central: ");
         SERIAL_PRINTLN(central.address());
+        SET_LED_MAGENTA();
     }
 
     if (g_isConnected && (!central || !central.connected())) {
         SERIAL_PRINTLN("Disconnected from central");
-        BLE.disconnect();
+        SET_LED_YELLOW();
     }
 
     g_isConnected = central.connected();
@@ -437,7 +438,7 @@ void loop() {
     }
 
     if (!g_running) {
-        delay(100);
+        delay(10);
         return;
     }
 

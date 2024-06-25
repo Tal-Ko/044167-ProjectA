@@ -2,6 +2,7 @@ package com.example.hrvapplication;
 
 import static java.lang.Thread.sleep;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.content.Intent;
@@ -10,6 +11,7 @@ import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.Log;
 import android.view.View;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
@@ -18,6 +20,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
+import androidx.annotation.RequiresApi;
 import androidx.annotation.RequiresPermission;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -52,6 +55,7 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
     Button switchToRRHistViewButton;
     Button switchToBPMHistViewButton;
 
+    private boolean permissionsGranted = false;
     private BLEController bleController;
     private String deviceAddress;
 
@@ -157,7 +161,9 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
         bleController = BLEController.getInstance(this);
 
         checkBLESupport();
-        checkPermissions();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            checkPermissions();
+        }
 
         // Define the Runnable that updates the TextView with a blinking effect
         updateTextView = new Runnable() {
@@ -249,30 +255,40 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-
-        this.deviceAddress = null;
-        this.bleController = BLEController.getInstance(this);
-        this.bleController.addBLEControllerListener(this);
-        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            this.bleController.init();
-        }
-    }
-
-    @Override
     protected void onPause() {
         super.onPause();
 
         isRunning = false;
-        this.bleController.removeBLEControllerListener(this);
+        bleController.removeBLEControllerListener(this);
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        bleController.addBLEControllerListener(this);
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.S)
     private void checkPermissions() {
+        List<String> permissions = new ArrayList<>();
+
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this,
-                    new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION},
-                    42);
+            permissions.add(android.Manifest.permission.ACCESS_FINE_LOCATION);
+        }
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(android.Manifest.permission.BLUETOOTH_SCAN);
+        }
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(android.Manifest.permission.BLUETOOTH_CONNECT);
+        }
+
+        if (!permissions.isEmpty()) {
+            ActivityCompat.requestPermissions(this, permissions.toArray(new String[0]), 1001);
+        } else {
+            permissionsGranted = true;
         }
     }
 
@@ -282,6 +298,12 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
             Toast.makeText(this, "BLE not supported!", Toast.LENGTH_SHORT).show();
             finish();
         }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        permissionsGranted = (Arrays.stream(grantResults).sum() == 0);
     }
 
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
@@ -330,6 +352,7 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
         lastCmd = 2;
         bleController.sendCommand(pauseCmd);
     }
+
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
     private void finishHRVMeasurement() throws InterruptedException {
         startButton.setEnabled(true);
@@ -374,9 +397,29 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
         isFinished = true;
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.S)
     @RequiresPermission(allOf = {"android.permission.BLUETOOTH_SCAN","android.permission.BLUETOOTH_CONNECT"})
     private void connectToArduinoBT() {
-        bleController.connectToDevice(deviceAddress);
+        if (deviceAddress != null) {
+            bleController.disconnect();
+
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    btButton.setText("BT Connect");
+                }
+            });
+
+            return;
+        }
+
+        if (!permissionsGranted) {
+            checkPermissions();
+            return;
+        }
+
+        bleController.addBLEControllerListener(this);
+        bleController.init();
     }
 
     private void switchToLiveView() {
@@ -398,32 +441,48 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
 
     @Override
     public void BLEControllerConnected() {
+        Log.d("BLE", "BLEController connected");
+
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 startButton.setEnabled(true);
+                btButton.setText("BT Disconnect");
             }
         });
     }
 
     @Override
     public void BLEControllerDisconnected() {
-        startButton.setEnabled(false);
-        pauseButton.setEnabled(false);
-        finishButton.setEnabled(false);
+        this.deviceAddress = null;
+        Log.d("BLE", "BLEController disconnected");
 
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
+                startButton.setEnabled(false);
+                pauseButton.setEnabled(false);
+                finishButton.setEnabled(false);
                 btButton.setEnabled(true);
+                btButton.setText("BT Connect");
             }
         });
     }
 
+    @RequiresPermission(allOf = {"android.permission.BLUETOOTH_SCAN","android.permission.BLUETOOTH_CONNECT"})
     @Override
     public void BLEDeviceFound(String name, String address) {
         this.deviceAddress = address;
-        startButton.setEnabled(false);
+        Log.d("BLE", "Device found: " + name + " (" + address + ")");
+
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                startButton.setEnabled(false);
+            }
+        });
+
+        bleController.connectToDevice(deviceAddress);
     }
 
     @Override
