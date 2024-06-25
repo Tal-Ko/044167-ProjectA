@@ -238,7 +238,7 @@ public class BLEController {
         @Override
         public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
             byte[] data = characteristic.getValue();
-            Log.i("[BLE]", "Characteristic changed: " + characteristic.getUuid().toString() + " Value: " + Arrays.toString(data));
+
             if (characteristic.getUuid().toString().equalsIgnoreCase(hrvResponseCharacteristicUUID)) {
                 double value = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).getDouble();
                 fireHRVDataReceived(value);
