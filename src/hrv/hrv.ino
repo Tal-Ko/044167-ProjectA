@@ -33,14 +33,14 @@ void SET_LED_RED() {
 
 void SET_LED_GREEN() {
     digitalWrite(LEDR, HIGH);
-    digitalWrite(LEDG, LOW);
-    digitalWrite(LEDB, HIGH);
+    digitalWrite(LEDG, HIGH);
+    digitalWrite(LEDB, LOW);
 }
 
 void SET_LED_BLUE() {
     digitalWrite(LEDR, HIGH);
-    digitalWrite(LEDG, HIGH);
-    digitalWrite(LEDB, LOW);
+    digitalWrite(LEDG, LOW);
+    digitalWrite(LEDB, HIGH);
 }
 
 void SET_LED_YELLOW() {
@@ -317,7 +317,7 @@ void dispatchCommand() {
         case PAUSE:
             SERIAL_PRINTLN("PAUSE");
             g_running = false;
-            SET_LED_RED();
+            SET_LED_YELLOW();
             break;
         case RESET:
             SERIAL_PRINTLN("RESET");
@@ -383,7 +383,7 @@ void setupBLE() {
     // begin initialization
     if (!BLE.begin()) {
         SERIAL_PRINTLN("Starting Bluetooth® Low Energy failed!");
-        SET_LED_BLUE();
+        SET_LED_RED();
         while (1);
     }
 
@@ -424,12 +424,20 @@ void loop() {
     if (central && !g_isConnected) {
         SERIAL_PRINT("Connected to central: ");
         SERIAL_PRINTLN(central.address());
-        SET_LED_MAGENTA();
+        if (g_running) {
+            SET_LED_GREEN();
+        } else {
+            SET_LED_YELLOW();
+        }
     }
 
     if (g_isConnected && (!central || !central.connected())) {
         SERIAL_PRINTLN("Disconnected from central");
-        SET_LED_YELLOW();
+        if (g_running) {
+            SET_LED_BLUE();
+        } else {
+            SET_LED_CYAN();
+        }
     }
 
     g_isConnected = central.connected();
