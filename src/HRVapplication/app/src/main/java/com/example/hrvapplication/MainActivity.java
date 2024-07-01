@@ -93,7 +93,7 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
 
     // Other Parameters
     private int lastBpm = 0;
-    private int lastCmd = 0;
+    private COMMANDS lastCmd = COMMANDS.STANDBY;
     private int sampleCount;
     private int xIndex;
 
@@ -171,6 +171,7 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
     @SuppressLint("SetTextI18n")
     @RequiresPermission(allOf = {"android.permission.BLUETOOTH_SCAN", "android.permission.BLUETOOTH_CONNECT"})
     private void setButtonListeners() {
+        // State buttons
         startButton.setOnClickListener(v -> {
             try {
                 startHRVMeasurement();
@@ -178,7 +179,13 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
                 throw new RuntimeException(e);
             }
         });
-        pauseButton.setOnClickListener(v -> pauseHRVMeasurement());
+        pauseButton.setOnClickListener(v -> {
+            try {
+                pauseHRVMeasurement();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
         finishButton.setOnClickListener(v -> {
             try {
                 finishHRVMeasurement();
@@ -186,6 +193,8 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
                 throw new RuntimeException(e);
             }
         });
+
+        // Graph buttons
         switchToLiveViewButton.setOnClickListener(v -> switchToLiveView());
         switchToRRHistViewButton.setOnClickListener(v -> {
             graphTitle.setText("RR Histogram");
@@ -308,6 +317,14 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
     }
 
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
+    private void sendCommand(COMMANDS cmd) throws InterruptedException {
+        byte[] cmdBytes = new byte[]{ (byte) cmd.getValue() };
+        lastCmd = cmd;
+        bleController.sendCommand(cmdBytes);
+        sleep(500);
+    }
+
+    @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
     private void startHRVMeasurement() throws InterruptedException {
         startButton.setEnabled(false);
         pauseButton.setEnabled(true);
@@ -324,33 +341,21 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
 
         if (isFinished) {
             lastBpm = 0;
-
             clearGraphData();
-
-            byte[] clearCmd = new byte[]{3};
-            lastCmd = 3;
-            bleController.sendCommand(clearCmd);
-
-            sleep(500);
-
+            sendCommand(COMMANDS.RESET);
             isFinished = false;
         }
 
-        byte[] startCmd = new byte[] {1};
-        lastCmd = 1;
-        bleController.sendCommand(startCmd);
+        sendCommand(COMMANDS.START);
         isRunning = true;
     }
 
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
-    private void pauseHRVMeasurement() {
+    private void pauseHRVMeasurement() throws InterruptedException {
         startButton.setEnabled(true);
         pauseButton.setEnabled(false);
         finishButton.setEnabled(true);
-
-        byte[] pauseCmd = new byte[] {2};
-        lastCmd = 2;
-        bleController.sendCommand(pauseCmd);
+        sendCommand(COMMANDS.PAUSE);
     }
 
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
@@ -366,33 +371,10 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
         RMSSDParameter.setVisibility(View.VISIBLE);
         SDANNParameter.setVisibility(View.VISIBLE);
 
-        {
-            byte[] pauseCmd = new byte[]{2};
-            lastCmd = 2;
-            bleController.sendCommand(pauseCmd);
-            sleep(500);
-        }
-
-        {
-            byte[] rmssdCmd = new byte[]{10};
-            lastCmd = 10;
-            bleController.sendCommand(rmssdCmd);
-            sleep(500);
-        }
-
-        {
-            byte[] sdannCmd = new byte[]{11};
-            lastCmd = 11;
-            bleController.sendCommand(sdannCmd);
-            sleep(500);
-        }
-
-        {
-            byte[] htiCmd = new byte[]{12};
-            lastCmd = 12;
-            bleController.sendCommand(htiCmd);
-            sleep(500);
-        }
+        sendCommand(COMMANDS.PAUSE);
+        sendCommand(COMMANDS.DUMP_RMSSD);
+        sendCommand(COMMANDS.DUMP_SDANN);
+        sendCommand(COMMANDS.DUMP_HTI);
 
         isFinished = true;
     }
@@ -498,14 +480,14 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
     @Override
     public void BLEHRVParametersReceived(double value) {
         switch (lastCmd) {
-            case 10:
-                htiParameter.setText("HTI: " + round(value));
-                break;
-            case 11:
+            case DUMP_RMSSD:
                 RMSSDParameter.setText("RMSSD: " + round(value));
                 break;
-            case 12:
+            case DUMP_SDANN:
                 SDANNParameter.setText("SDANN: " + round(value));
+                break;
+            case DUMP_HTI:
+                htiParameter.setText("HTI: " + round(value));
                 break;
         }
     }
