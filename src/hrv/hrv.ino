@@ -537,6 +537,9 @@ void loop() {
             updateRMSSDSum(rrInterval);
             updateSDANNSum(rrInterval);
 
+            // Artifically delay the live signal feed to not overwhelm the
+            // system and allow it to process the RR and BPM updates.
+            lastSigTimestamp = millis();
             firstPeakTime = secondPeakTime;
         }
 
