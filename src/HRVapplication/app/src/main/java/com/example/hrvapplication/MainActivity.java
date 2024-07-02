@@ -535,6 +535,7 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
             case "BPM":
                 if (data < BPM_HIST_NUM_BINS) {
                     lastBpm = data;
+                    Log.d("BLE", "BPMi: " + data);
                     bpmHistogram[data]++;
                 }
                 break;
