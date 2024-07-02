@@ -554,13 +554,14 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
 
         // Customize X axis
         XAxis xAxis = liveECGSignalchart.getXAxis();
-        xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
-        xAxis.setLabelRotationAngle(45);
+        xAxis.setDrawLabels(false);
         xAxis.setDrawGridLines(false);
+        xAxis.setDrawAxisLine(false);
+        xAxis.setGranularity(1f);
 
         // Customize Y axis
         YAxis leftAxis = liveECGSignalchart.getAxisLeft();
-        leftAxis.setAxisMaximum(1500f);
+        leftAxis.setAxisMaximum(1024f);
         leftAxis.setDrawGridLines(false);
 
         YAxis rightAxis = liveECGSignalchart.getAxisRight();
@@ -568,7 +569,7 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
 
         // Set description
         Description description = new Description();
-        description.setText("Sample Index");
+        description.setText("Samples");
         liveECGSignalchart.setDescription(description);
 
         // Initial chart refresh
@@ -598,7 +599,8 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
                 lineDataSet.addEntry(new Entry(xIndex++, value));
                 lineData.notifyDataChanged();
                 liveECGSignalchart.notifyDataSetChanged();
-                liveECGSignalchart.setVisibleXRangeMaximum(50);
+                liveECGSignalchart.invalidate();
+                liveECGSignalchart.setVisibleXRangeMaximum(100);
                 liveECGSignalchart.moveViewToX(xIndex);
             }
         });
@@ -618,13 +620,14 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
                 lineData.notifyDataChanged();               // Notify the data has changed
                 liveECGSignalchart.notifyDataSetChanged();  // Notify the chart data has changed
                 liveECGSignalchart.invalidate();            // Refresh the chart
-
-                xIndex = 0;                                 // Reset the xIndex
-                sampleCount = 0;                            // Reset the sample count
+                liveECGSignalchart.moveViewToX(0);
 
                 Log.d("ECGGraph", "Graph data cleared");
             }
         });
+
+        xIndex = 0;                                 // Reset the xIndex
+        sampleCount = 0;                            // Reset the sample count
     }
 
     private void updateBPMHistograms() {
