@@ -392,16 +392,9 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
     @RequiresPermission(allOf = {"android.permission.BLUETOOTH_SCAN","android.permission.BLUETOOTH_CONNECT"})
     private void connectToArduinoBT() {
         if (deviceAddress != null) {
+            disableButtons();
+            btButton.setEnabled(false);
             bleController.disconnect();
-
-            runOnUiThread(new Runnable() {
-                @SuppressLint("SetTextI18n")
-                @Override
-                public void run() {
-                    btButton.setText("BT Connect");
-                }
-            });
-
             return;
         }
 
@@ -412,6 +405,15 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
 
         bleController.addBLEControllerListener(this);
         bleController.init();
+
+        handler.post(new Runnable() {
+            @SuppressLint("SetTextI18n")
+            @Override
+            public void run() {
+                btButton.setEnabled(false);
+                btButton.setText("Scanning...");
+            }
+        });
     }
 
     @SuppressLint("SetTextI18n")
@@ -441,6 +443,7 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
             @Override
             public void run() {
                 startButton.setEnabled(true);
+                btButton.setEnabled(true);
                 btButton.setText("BT Disconnect");
             }
         });
@@ -451,17 +454,16 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
         this.deviceAddress = null;
         Log.d("BLE", "BLEController disconnected");
 
-        runOnUiThread(new Runnable() {
+        disableButtons();
+
+        handler.postDelayed(new Runnable() {
             @SuppressLint("SetTextI18n")
             @Override
             public void run() {
-                startButton.setEnabled(false);
-                pauseButton.setEnabled(false);
-                finishButton.setEnabled(false);
                 btButton.setEnabled(true);
                 btButton.setText("BT Connect");
             }
-        });
+        }, 2500);
     }
 
     @RequiresPermission(allOf = {"android.permission.BLUETOOTH_SCAN","android.permission.BLUETOOTH_CONNECT"})
