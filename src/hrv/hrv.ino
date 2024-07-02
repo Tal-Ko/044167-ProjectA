@@ -78,8 +78,8 @@ void SET_LED_CYAN() {
 bool alreadyPeaked = false;
 
 int ecgOffset = 0;
-int lowerThreshold = 300;
-int upperThreshold = 900;
+const int ECG_TH_LOW = 300;
+const int ECG_TH_HIGH = 900;
 
 const int ecgPin = A0;
 
@@ -490,7 +490,7 @@ void loop() {
         if (millis() - lastSigTimestamp > sigDeltaT) {
             hrvLiveSignalCharacteristic.writeValue(ecgReading);
             lastSigTimestamp = millis();
-        } else if (ecgReading > upperThreshold || ecgReading > lowerThreshold) {
+        } else if (ecgReading > ECG_TH_HIGH || ecgReading < ECG_TH_LOW) {
             // However if the signal is above the high threshold it means that
             // this is part of the R wave. If it's under the lower threshold it
             // means that it is part of the S wave. We want these values.
@@ -500,7 +500,7 @@ void loop() {
 
     // Measure the ECG reading minus an offset to bring it into the same
     // range as the heart rate (i.e. around 60 to 100 bpm)
-    if (ecgReading > upperThreshold && !alreadyPeaked) {
+    if (ecgReading > ECG_TH_HIGH && !alreadyPeaked) {
         // Check if the ECG reading is above the upper threshold and that
         // we aren't already in an existing peak
         if (firstPeakTime == 0) {
@@ -539,7 +539,7 @@ void loop() {
         alreadyPeaked = true;
     }
 
-    if (ecgReading < lowerThreshold) {
+    if (ecgReading < ECG_TH_LOW) {
         // Check if the ECG reading has fallen below the lower threshold
         // and if we are ready to detect another peak
         alreadyPeaked = false;
