@@ -264,6 +264,11 @@ void dumpHTI() {
 
 void updateRRHistogram(unsigned long rrInterval) {
     rrIntervalsHistogram[rrInterval]++;
+
+    // We might've started running and then disconnected from the central
+    if (g_isConnected) {
+        hrvLiveRRCharacteristic.writeValue(rrInterval);
+    }
 }
 
 void updateBPMHistogram(unsigned long rrInterval) {
@@ -273,7 +278,11 @@ void updateBPMHistogram(unsigned long rrInterval) {
     int bpmi = min((int)(floor(beatsPerMinute)), BPM_HIST_NUM_BINS);
     bpmHistogram[bpmi]++;
 
-    hrvBPMCharacteristic.writeValue(bpmi);
+    // We might've started running and then disconnected from the central
+    if (g_isConnected) {
+        hrvBPMCharacteristic.writeValue(bpmi);
+    }
+
     SERIAL_PRINT("bpmi: ");
     SERIAL_PRINTLN(bpmi);
 }
@@ -520,12 +529,7 @@ void loop() {
                 // This way we perform a soft reset on the monitoring process
                 // without invalidating the data we collected thus far.
                 firstPeakTime = 0;
-                goto refresh;
-            }
-
-            // We might've started running and then disconnected from the central
-            if (g_isConnected) {
-                hrvLiveRRCharacteristic.writeValue(rrInterval);
+                return;
             }
 
             updateRRHistogram(rrInterval);
@@ -544,7 +548,4 @@ void loop() {
         // and if we are ready to detect another peak
         alreadyPeaked = false;
     }
-
-refresh:
-    delay(1);
 }
