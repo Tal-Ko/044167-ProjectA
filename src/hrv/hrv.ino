@@ -6,6 +6,9 @@
 // Undef this to print the live signal to the serial connection
 // #define DEBUG_LIVE_SIGNAL
 
+bool g_loggedNoCentral = false;
+bool g_loggedDisconnectedCentral = false;
+
 #ifdef USB_DEBUGGING
 #define SERIAL_PRINTLN(msg) do {    \
     Serial.println(msg);            \
@@ -14,9 +17,17 @@
 #define SERIAL_PRINT(msg) do {      \
     Serial.print(msg);              \
 } while (0);
+
+#define SERIAL_PRINTLN_ONCE(msg, flag) do {     \
+    if (!flag) {                                \
+        Serial.println(msg);                    \
+        flag = true;                            \
+    }                                           \
+} while (0);
 #else  // !USB_DEBUGGING
 #define SERIAL_PRINTLN(msg)
 #define SERIAL_PRINT(msg)
+#define SERIAL_PRINTLN_ONCE(msg, flag);
 #endif  // USB_DEBUGGING
 
 void SET_LED_WHITE() {
@@ -418,35 +429,52 @@ void setup() {
     resetAll();
 }
 
+void setDisconnectedLed() {
+    if (g_running) {
+        SET_LED_BLUE();
+    } else {
+        SET_LED_CYAN();
+    }
+
+    g_isConnected = false;
+}
+
 void loop() {
     BLEDevice central = BLE.central();
 
-    if (central && !g_isConnected) {
-        SERIAL_PRINT("Connected to central: ");
-        SERIAL_PRINTLN(central.address());
-        if (g_running) {
-            SET_LED_GREEN();
+    if (!central) {
+        // No central device object exists
+        SERIAL_PRINTLN_ONCE("No central device found", g_loggedNoCentral);
+        setDisconnectedLed();
+    } else {
+        if (central.connected()) {
+            if (!g_isConnected) {
+                // Central device exists and is connected
+                SERIAL_PRINT("Connected to central: ");
+                SERIAL_PRINTLN(central.address());
+                if (g_running) {
+                    SET_LED_GREEN();
+                } else {
+                    SET_LED_YELLOW();
+                }
+
+                g_isConnected = true;
+                g_loggedNoCentral = false;
+                g_loggedDisconnectedCentral = false;
+            }
         } else {
-            SET_LED_YELLOW();
+            // Central device exists but is not connected
+            SERIAL_PRINTLN_ONCE("Central device found but not connected", g_loggedDisconnectedCentral);
+            setDisconnectedLed();
+            SET_LED_RED();
         }
     }
 
-    if (g_isConnected && (!central || !central.connected())) {
-        SERIAL_PRINTLN("Disconnected from central");
-        if (g_running) {
-            SET_LED_BLUE();
-        } else {
-            SET_LED_CYAN();
-        }
-    }
-
-    g_isConnected = central.connected();
     if (g_isConnected) {
         dispatchCommand();
     }
 
     if (!g_running) {
-        delay(10);
         return;
     }
 
