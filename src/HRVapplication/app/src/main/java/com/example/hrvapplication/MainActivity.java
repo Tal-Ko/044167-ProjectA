@@ -437,7 +437,7 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
     public void BLEControllerConnected() {
         Log.d("BLE", "BLEController connected");
 
-        runOnUiThread(new Runnable() {
+        handler.post(new Runnable() {
             @SuppressLint("SetTextI18n")
             @Override
             public void run() {
@@ -453,6 +453,7 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
         this.deviceAddress = null;
         Log.d("BLE", "BLEController disconnected");
 
+        isRunning = false;
         disableButtons();
 
         handler.postDelayed(new Runnable() {
@@ -461,6 +462,12 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
             public void run() {
                 btButton.setEnabled(true);
                 btButton.setText("BT Connect");
+
+                if (isFinished) {
+                    switchToLiveViewButton.setEnabled(true);
+                    switchToRRHistViewButton.setEnabled(true);
+                    switchToBPMHistViewButton.setEnabled(true);
+                }
             }
         }, 2500);
     }
@@ -511,10 +518,15 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
         // Detect already running
         if (!isRunning) {
             isRunning = true;
-            runOnUiThread(new Runnable() {
+            handler.post(new Runnable() {
+                @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
                 @Override
                 public void run() {
-                    startButton.callOnClick();
+                    try {
+                        startHRVMeasurement();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
             });
         }
