@@ -75,6 +75,7 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
     private boolean permissionsGranted = false;
     private boolean isRunning = false;
     private boolean isFinished = false;
+    private boolean paused = false;
 
     // BLE Controller and Device Info
     private BLEController bleController;
@@ -339,6 +340,9 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
 
         switchToLiveView();
 
+        isRunning = true;
+        paused = false;
+
         if (isFinished) {
             lastBpm = 0;
             clearGraphData();
@@ -347,7 +351,6 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
         }
 
         sendCommand(COMMANDS.START);
-        isRunning = true;
     }
 
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
@@ -355,6 +358,8 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
         startButton.setEnabled(true);
         pauseButton.setEnabled(false);
         finishButton.setEnabled(true);
+
+        paused = true;
         sendCommand(COMMANDS.PAUSE);
     }
 
@@ -371,6 +376,7 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
         RMSSDParameter.setVisibility(View.VISIBLE);
         SDANNParameter.setVisibility(View.VISIBLE);
 
+        paused = true;
         sendCommand(COMMANDS.PAUSE);
         sendCommand(COMMANDS.DUMP_RMSSD);
         sendCommand(COMMANDS.DUMP_SDANN);
@@ -494,6 +500,10 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
 
     @Override
     public void BLELiveDataReceived(int data, String characteristic) {
+        if (paused) {
+            return;
+        }
+
         // Detect already running
         if (!isRunning) {
             isRunning = true;
