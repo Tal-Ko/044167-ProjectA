@@ -522,14 +522,18 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
 
         switch (characteristic) {
             case "BPM":
-                lastBpm = data;
-                bpmHistogram[data]++;
+                if (data < BPM_HIST_NUM_BINS) {
+                    lastBpm = data;
+                    bpmHistogram[data]++;
+                }
                 break;
             case "SIG":
                 updateGraph(data);
                 break;
             case "RR":
-                rrIntervalsHistogram[data]++;
+                if (data < RR_HIST_NUM_BINS) {
+                    rrIntervalsHistogram[data]++;
+                }
                 break;
         }
     }
