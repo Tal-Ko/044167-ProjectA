@@ -8,6 +8,7 @@ import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
@@ -31,6 +32,7 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.github.mikephil.charting.charts.BarChart;
+import com.github.mikephil.charting.charts.Chart;
 import com.github.mikephil.charting.charts.LineChart;
 import com.github.mikephil.charting.components.Description;
 import com.github.mikephil.charting.components.Legend;
@@ -154,9 +156,6 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
 
         // Initialize the graph
         initializeGraph();
-
-        // Get BarChart from layout
-        histogramChart = findViewById(R.id.histogramChart);
     }
 
     // Helper method to disable buttons
@@ -538,13 +537,51 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
         }
     }
 
+    private void configureGraphTextColor(Chart<?> chart) {
+        int nightModeFlags = getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        switch (nightModeFlags) {
+            case Configuration.UI_MODE_NIGHT_YES:
+                // Dark theme
+                chart.getXAxis().setTextColor(Color.WHITE);
+                if (chart instanceof LineChart) {
+                    ((LineChart) chart).getAxisLeft().setTextColor(Color.WHITE);
+                    ((LineChart) chart).getAxisRight().setTextColor(Color.WHITE);
+                } else {
+                    ((BarChart) chart).getAxisLeft().setTextColor(Color.WHITE);
+                    ((BarChart) chart).getAxisRight().setTextColor(Color.WHITE);
+                }
+                chart.getLegend().setTextColor(Color.WHITE);
+                chart.getDescription().setTextColor(Color.WHITE);
+                break;
+
+            case Configuration.UI_MODE_NIGHT_NO:
+            case Configuration.UI_MODE_NIGHT_UNDEFINED:
+                // Light theme
+                chart.getXAxis().setTextColor(Color.BLACK);
+                if (chart instanceof LineChart) {
+                    ((LineChart) chart).getAxisLeft().setTextColor(Color.BLACK);
+                    ((LineChart) chart).getAxisRight().setTextColor(Color.BLACK);
+                } else {
+                    ((BarChart) chart).getAxisLeft().setTextColor(Color.BLACK);
+                    ((BarChart) chart).getAxisRight().setTextColor(Color.BLACK);
+                }
+                chart.getLegend().setTextColor(Color.BLACK);
+                chart.getDescription().setTextColor(Color.BLACK);
+                break;
+        }
+    }
+
     private void initializeGraph() {
+        histogramChart = findViewById(R.id.histogramChart);
         liveECGSignalchart = findViewById(R.id.ECGLiveSignal);
         lineDataSet = new LineDataSet(null, "Live Signal");
         lineDataSet.setDrawValues(false);
         lineDataSet.setDrawCircles(false);
         lineData = new LineData(lineDataSet);
         liveECGSignalchart.setData(lineData);
+
+        configureGraphTextColor(liveECGSignalchart);
+        configureGraphTextColor(histogramChart);
 
         // Customize the legend
         Legend legend = liveECGSignalchart.getLegend();
@@ -567,10 +604,7 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
         YAxis rightAxis = liveECGSignalchart.getAxisRight();
         rightAxis.setEnabled(false);
 
-        // Set description
-        Description description = new Description();
-        description.setText("Samples");
-        liveECGSignalchart.setDescription(description);
+        liveECGSignalchart.getDescription().setEnabled(false);
 
         // Initial chart refresh
         liveECGSignalchart.invalidate();
@@ -645,10 +679,7 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
         BarData barData = new BarData(bpmDataSet);
         histogramChart.setData(barData);
 
-        // Set description
-        Description description = new Description();
-        description.setText("RR Histograms");
-        histogramChart.setDescription(description);
+        histogramChart.getDescription().setEnabled(false);
 
         // Refresh chart
         histogramChart.invalidate();
@@ -663,16 +694,13 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
 
         // Create BarDataSet for RR histogram
         BarDataSet rrDataSet = new BarDataSet(rrEntries, "RR Histogram");
-        rrDataSet.setColor(Color.BLUE);
+        rrDataSet.setColor(Color.rgb(255, 69, 0));
 
         // Create BarData object and set it to the BarChart
         BarData barData = new BarData(rrDataSet);
         histogramChart.setData(barData);
 
-        // Set description
-        Description description = new Description();
-        description.setText("RR Histograms");
-        histogramChart.setDescription(description);
+        histogramChart.getDescription().setEnabled(false);
 
         // Refresh chart
         histogramChart.invalidate();
