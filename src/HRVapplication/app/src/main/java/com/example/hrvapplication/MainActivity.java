@@ -83,6 +83,7 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
 
     // Handler and Runnable
     private final Handler handler = new Handler();
+    Runnable updateTextView;
 
     // Constants
     private static final int BPM_HIST_NUM_BINS = 220;
@@ -220,7 +221,7 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
 
     // Helper method to set up TextView updater with blinking effect
     private void setupTextViewUpdater() {
-        Runnable updateTextView = new Runnable() {
+        updateTextView = new Runnable() {
             @Override
             public void run() {
                 if (!pauseButton.isEnabled()) {
@@ -244,9 +245,6 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
                 handler.postDelayed(this, 1000);
             }
         };
-
-        // Start the initial update
-        handler.post(updateTextView);
     }
 
     @Override
@@ -337,6 +335,11 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
         htiParameter.setVisibility(View.INVISIBLE);
         RMSSDParameter.setVisibility(View.INVISIBLE);
         SDANNParameter.setVisibility(View.INVISIBLE);
+
+        handler.removeCallbacksAndMessages(null);
+
+        // Start the initial update
+        handler.post(updateTextView);
 
         switchToLiveView();
 
@@ -596,7 +599,7 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
     }
 
     private void clearGraphData() {
-        handler.post(new Runnable() {
+        handler.postAtFrontOfQueue(new Runnable() {
             @Override
             public void run() {
                 Log.d("ECGGraph", "Clearing graph data");
