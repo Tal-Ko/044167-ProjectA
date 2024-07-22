@@ -229,7 +229,13 @@ public class MainActivity extends AppCompatActivity implements BLEControllerList
                 }
 
                 // Update the TextView with the current number
-                pulseTextView.setText(String.valueOf(lastBpm));
+                if (lastBpm == 0) {
+                    pulseTextView.setText("Calibrating");
+                    pulseTextView.setTextSize(22f);
+                } else {
+                    pulseTextView.setText(String.valueOf(lastBpm));
+                    pulseTextView.setTextSize(48f);
+                }
 
                 // Create the blink animation
                 Animation blink = new AlphaAnimation(0.0f, 1.0f);
