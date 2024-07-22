@@ -77,9 +77,10 @@ void SET_LED_CYAN() {
 ///////////////////////////////////////////////////////////////////////////////
 bool alreadyPeaked = false;
 
-int ecgOffset = 0;
-const int ECG_TH_LOW = 300;
-const int ECG_TH_HIGH = 900;
+int ecgMean = 0;
+int ecgStd = 0;
+int ecgThresholdLow = 0;
+int ecgThresholdHigh = 0;
 
 const int ecgPin = A0;
 
@@ -98,6 +99,7 @@ unsigned long firstPeakTime = 0;
 unsigned long prevrrInterval = 0;
 unsigned long rrInterval = 0;
 unsigned long secondPeakTime = 0;
+bool sentBPM = false;
 
 ///////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////// RMSSD ////////////////////////////////////
@@ -314,6 +316,45 @@ void updateSDANNSum(unsigned long rrInterval) {
     }
 }
 
+void calibrateThresholds() {
+    static const int calibrationTimeSec = 5 * 1000;
+
+    {
+        int startTime = millis();
+        int mean = 0;
+        int N = 0;
+        while (millis() - startTime <= calibrationTimeSec) {
+            mean += analogRead(ecgPin);
+            N++;
+        }
+        ecgMean = mean / N;
+    }
+
+    {
+        int startTime = millis();
+        int std = 0;
+        int N = 0;
+        while (millis() - startTime <= calibrationTimeSec) {
+            int v = (analogRead(ecgPin) - ecgMean);
+            std += (v * v);
+            N++;
+        }
+        ecgStd = sqrt(std / N);
+    }
+
+    SERIAL_PRINT("ECG Mean: ");
+    SERIAL_PRINTLN(ecgMean);
+    SERIAL_PRINT("ECG STD: ");
+    SERIAL_PRINTLN(ecgStd);
+
+    ecgThresholdHigh = 2 * ecgStd + ecgMean;
+    ecgThresholdLow = ecgMean - ecgStd;
+    SERIAL_PRINT("ecgThresholdHigh: ");
+    SERIAL_PRINTLN(ecgThresholdHigh);
+    SERIAL_PRINT("ecgThresholdLow: ");
+    SERIAL_PRINTLN(ecgThresholdLow);
+}
+
 void dispatchCommand() {
     int action = hrvCommandCharacteristic.value();
     if (action == prevAction) {
@@ -330,6 +371,8 @@ void dispatchCommand() {
             break;
         case START:
             SERIAL_PRINTLN("START");
+            SET_LED_MAGENTA();
+            calibrateThresholds();
             g_running = true;
             lastSigTimestamp = millis();
             SET_LED_GREEN();
@@ -487,7 +530,7 @@ void loop() {
         return;
     }
 
-    int ecgReading = analogRead(ecgPin) - ecgOffset;
+    int ecgReading = analogRead(ecgPin);
 #ifdef DEBUG_LIVE_SIGNAL
     SERIAL_PRINTLN(ecgReading);
 #endif // DEBUG_LIVE_SIGNAL
@@ -499,17 +542,22 @@ void loop() {
         if (millis() - lastSigTimestamp > sigDeltaT) {
             hrvLiveSignalCharacteristic.writeValue(ecgReading);
             lastSigTimestamp = millis();
-        } else if (ecgReading > ECG_TH_HIGH || ecgReading < ECG_TH_LOW) {
+        } else if (ecgReading > ecgThresholdHigh || ecgReading < ecgThresholdLow) {
             // However if the signal is above the high threshold it means that
             // this is part of the R wave. If it's under the lower threshold it
             // means that it is part of the S wave. We want these values.
             hrvLiveSignalCharacteristic.writeValue(ecgReading);
+            lastSigTimestamp = millis();
+        } else if (!sentBPM) {
+            updateRRHistogram(rrInterval);
+            updateBPMHistogram(rrInterval);
+            sentBPM = true;
         }
     }
 
     // Measure the ECG reading minus an offset to bring it into the same
     // range as the heart rate (i.e. around 60 to 100 bpm)
-    if (ecgReading > ECG_TH_HIGH && !alreadyPeaked) {
+    if (ecgReading > ecgThresholdHigh && !alreadyPeaked) {
         // Check if the ECG reading is above the upper threshold and that
         // we aren't already in an existing peak
         if (firstPeakTime == 0) {
@@ -532,21 +580,20 @@ void loop() {
                 return;
             }
 
-            updateRRHistogram(rrInterval);
-            updateBPMHistogram(rrInterval);
             updateRMSSDSum(rrInterval);
             updateSDANNSum(rrInterval);
+            sentBPM = false;
 
-            // Artifically delay the live signal feed to not overwhelm the
-            // system and allow it to process the RR and BPM updates.
-            lastSigTimestamp = millis();
+            // // Artifically delay the live signal feed to not overwhelm the
+            // // system and allow it to process the RR and BPM updates.
+            // lastSigTimestamp = millis();
             firstPeakTime = secondPeakTime;
         }
 
         alreadyPeaked = true;
     }
 
-    if (ecgReading < ECG_TH_LOW) {
+    if (ecgReading < ecgThresholdLow) {
         // Check if the ECG reading has fallen below the lower threshold
         // and if we are ready to detect another peak
         alreadyPeaked = false;
